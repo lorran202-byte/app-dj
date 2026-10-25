@@ -163,8 +163,11 @@ class AudioEngineTest {
         d.eqHigh = 0f; d.eqMid = 0f
         run(d, 1)
         d.playing = true
-        val out = run(d, 200)
-        assertEquals("grave sozinho perdeu volume", 0.346, rms(out).toDouble(), 0.03)
+        run(d, 150)
+        val out = FloatArray(Engine.BLOCK * 2)
+        var peak = 0f
+        repeat(30) { d.render(out, Engine.BLOCK); for (v in out) peak = maxOf(peak, abs(v)) }
+        assertEquals("grave sozinho perdeu volume", 16000.0 / 32768, peak.toDouble(), 0.03)
     }
 
     @Test fun effectsStayStable() {
