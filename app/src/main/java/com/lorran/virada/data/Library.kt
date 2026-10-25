@@ -3,6 +3,7 @@ package com.lorran.virada.data
 import android.content.ContentUris
 import android.content.Context
 import android.net.Uri
+import android.os.Build
 import android.provider.MediaStore
 import android.provider.OpenableColumns
 import com.lorran.virada.audio.Analysis
@@ -24,7 +25,22 @@ data class Song(
     val title: String,
     val artist: String,
     val durationMs: Long,
+    /** Pasta onde o arquivo está, ex.: "Music/Funk" ("" = fora de pasta conhecida). */
+    val folder: String = "",
 )
+
+/** A música está em alguma das [folders] (ou em subpasta delas)? Lista vazia = todas. */
+fun inFolders(folder: String, folders: Set<String>): Boolean =
+    folders.isEmpty() || folders.any { folder == it || folder.startsWith("$it/") }
+
+/** Normaliza caminhos do MediaStore: "Music/Funk/" e "/storage/emulated/0/Music/Funk/x.mp3" viram "Music/Funk". */
+fun normalizeFolder(relativePath: String?, data: String?): String {
+    if (!relativePath.isNullOrBlank()) return relativePath.trim('/')
+    if (data.isNullOrBlank()) return ""
+    val dir = data.substringBeforeLast('/', "")
+    val m = Regex("^/storage/(emulated/\\d+|[^/]+)/?").find(dir)
+    return (if (m != null) dir.substring(m.range.last + 1) else dir).trim('/')
+}
 
 class Library(private val ctx: Context) {
     private val cues = ctx.getSharedPreferences("cues", Context.MODE_PRIVATE)
@@ -41,6 +57,7 @@ class Library(private val ctx: Context) {
             MediaStore.Audio.Media.DURATION,
             MediaStore.Audio.Media.SIZE,
             MediaStore.Audio.Media.DATE_MODIFIED,
+            if (Build.VERSION.SDK_INT >= 29) MediaStore.Audio.Media.RELATIVE_PATH else MediaStore.Audio.Media.DATA,
         )
         val sel = "${MediaStore.Audio.Media.DURATION} >= 20000"
         ctx.contentResolver.query(uri, proj, sel, null, "${MediaStore.Audio.Media.TITLE} COLLATE NOCASE ASC")?.use { c ->
@@ -50,6 +67,7 @@ class Library(private val ctx: Context) {
             val iD = c.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
             val iS = c.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE)
             val iM = c.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED)
+            val iP = c.getColumnIndexOrThrow(proj.last())
             while (c.moveToNext()) {
                 val id = c.getLong(iId)
                 val artist = c.getString(iA)?.takeIf { it != "<unknown>" } ?: "Artista desconhecido"
@@ -59,6 +77,8 @@ class Library(private val ctx: Context) {
                     title = c.getString(iT) ?: "Sem título",
                     artist = artist,
                     durationMs = c.getLong(iD),
+                    folder = if (Build.VERSION.SDK_INT >= 29) normalizeFolder(c.getString(iP), null)
+                    else normalizeFolder(null, c.getString(iP)),
                 )
             }
         }

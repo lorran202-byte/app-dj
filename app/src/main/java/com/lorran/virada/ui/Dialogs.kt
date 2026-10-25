@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -31,7 +32,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
@@ -103,6 +107,14 @@ fun LibraryDialog(vm: DjViewModel, onRequestPermission: () -> Unit) {
                     colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = color, cursorColor = color),
                 )
                 Spacer(Modifier.width(8.dp))
+                TextButton(onClick = { vm.showFolders = true }) {
+                    Icon(Icons.Filled.Folder, null, tint = if (vm.folders.isEmpty()) C.TextDim else C.Accent)
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        if (vm.folders.isEmpty()) "Pastas: todas" else "Pastas: ${vm.folders.size}",
+                        color = if (vm.folders.isEmpty()) C.TextDim else C.Accent,
+                    )
+                }
                 TextButton(onClick = { picker.launch(arrayOf("audio/*")) }) {
                     Icon(Icons.Filled.FolderOpen, null, tint = C.Accent)
                     Spacer(Modifier.width(4.dp))
@@ -160,7 +172,13 @@ private fun LocalList(vm: DjViewModel, target: Int, color: Color, onRequestPermi
         else -> {
             val list = vm.visibleSongs()
             if (list.isEmpty()) {
-                BigMessage(if (vm.search.isBlank()) "Nenhuma música encontrada no celular" else "Nada encontrado para \"${vm.search}\"")
+                BigMessage(
+                    when {
+                        vm.search.isNotBlank() -> "Nada encontrado para \"${vm.search}\""
+                        vm.folders.isNotEmpty() -> "Nenhuma música nas pastas escolhidas"
+                        else -> "Nenhuma música encontrada no celular"
+                    }
+                )
             } else LazyColumn(Modifier.fillMaxSize()) {
                 items(list, key = { it.key }) { s ->
                     SongRow(s.title, s.artist, vm.lib.bpmOf(s.key), s.durationMs, color) { vm.requestLoad(target, s) }
@@ -184,6 +202,15 @@ fun SettingsDialog(vm: DjViewModel) {
                 Row {
                     Choice("Suave", !vm.sharpCurve) { vm.updateSettings { sharpCurve = false } }
                     Choice("Corte (scratch)", vm.sharpCurve) { vm.updateSettings { sharpCurve = true } }
+                }
+                Label("Biblioteca")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        if (vm.folders.isEmpty()) "Usando todas as pastas do celular"
+                        else "Usando ${vm.folders.size} pasta(s) escolhida(s)",
+                        color = C.Text, fontSize = 14.sp, modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = { vm.showFolders = true }) { Text("Escolher pastas") }
                 }
                 Label("Faixa do pitch")
                 Row {
@@ -301,5 +328,68 @@ fun ConfirmLoadDialog(vm: DjViewModel) {
         confirmButton = { TextButton(onClick = { vm.load(c.first, c.second) }) { Text("Trocar") } },
         dismissButton = { TextButton(onClick = { vm.confirmLoad = null }) { Text("Cancelar") } },
         containerColor = C.Surface,
+    )
+}
+
+@Composable
+fun FoldersDialog(vm: DjViewModel, onRequestPermission: () -> Unit) {
+    if (!vm.showFolders) return
+    val list = vm.folderList()
+    val sel = vm.folders
+    AlertDialog(
+        onDismissRequest = { vm.showFolders = false },
+        confirmButton = { TextButton(onClick = { vm.showFolders = false }) { Text("Pronto") } },
+        dismissButton = {
+            if (sel.isNotEmpty()) TextButton(onClick = { vm.setFolders(emptySet()) }) { Text("Usar todas") }
+        },
+        title = { Text("Pastas da biblioteca") },
+        containerColor = C.Surface,
+        text = {
+            Column(Modifier.widthIn(max = 560.dp)) {
+                Text(
+                    "Marque as pastas que o app deve usar. Marcar uma pasta inclui as subpastas. " +
+                        "Sem nenhuma marcada, o app usa todas.",
+                    color = C.TextDim, fontSize = 12.sp,
+                )
+                Spacer(Modifier.height(8.dp))
+                when {
+                    !vm.hasPermission -> {
+                        Text("Libere o acesso às músicas para ver as pastas.", color = C.TextDim)
+                        TextButton(onClick = onRequestPermission) { Text("Permitir acesso") }
+                    }
+                    !vm.songsLoaded -> Text("Procurando músicas…", color = C.TextDim)
+                    list.isEmpty() -> Text("Nenhuma pasta com música encontrada.", color = C.TextDim)
+                    else -> LazyColumn(Modifier.heightIn(max = 300.dp)) {
+                        items(list, key = { it.first }) { (path, count) ->
+                            val parent = sel.firstOrNull { path.startsWith("$it/") }
+                            val checked = path in sel || parent != null
+                            val depth = if (path.isEmpty()) 0 else path.count { it == '/' }
+                            val name = if (path.isEmpty()) "(outras)" else path.substringAfterLast('/')
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clickable(enabled = parent == null) { vm.toggleFolder(path) }
+                                    .padding(start = (depth * 16).dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Checkbox(
+                                    checked = checked, enabled = parent == null,
+                                    onCheckedChange = { vm.toggleFolder(path) },
+                                    colors = CheckboxDefaults.colors(checkedColor = C.Accent, checkmarkColor = C.OnColor),
+                                )
+                                Icon(Icons.Filled.Folder, null, tint = if (checked) C.Accent else C.TextDim, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(name, color = C.Text, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    if (parent != null) Text("incluída em ${parent.substringAfterLast('/')}", color = C.TextDim, fontSize = 10.sp)
+                                }
+                                Text("$count", color = C.TextDim, fontSize = 12.sp, fontFamily = Mono)
+                                Spacer(Modifier.width(8.dp))
+                            }
+                        }
+                    }
+                }
+            }
+        },
     )
 }

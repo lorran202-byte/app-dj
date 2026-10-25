@@ -22,6 +22,7 @@ import com.lorran.virada.data.RecordingInfo
 import com.lorran.virada.data.RecordingTarget
 import com.lorran.virada.data.Recordings
 import com.lorran.virada.data.Song
+import com.lorran.virada.data.inFolders
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -78,6 +79,9 @@ class DjViewModel(app: Application) : AndroidViewModel(app) {
     var libraryFor by mutableIntStateOf(-1)
     var search by mutableStateOf("")
     var sort by mutableStateOf(Sort.TITLE)
+    /** Pastas escolhidas como biblioteca (vazio = todas). */
+    var folders by mutableStateOf(prefs.getStringSet("folders", emptySet())!!.toSet())
+    var showFolders by mutableStateOf(false)
     var confirmLoad by mutableStateOf<Pair<Int, Song>?>(null)
 
     var crossfader by mutableFloatStateOf(0f)
@@ -222,14 +226,47 @@ class DjViewModel(app: Application) : AndroidViewModel(app) {
 
     fun visibleSongs(): List<Song> {
         val q = search.trim().lowercase()
-        val base = if (q.isEmpty()) songs else songs.filter {
-            it.title.lowercase().contains(q) || it.artist.lowercase().contains(q)
+        val sel = folders
+        val base = songs.filter {
+            inFolders(it.folder, sel) &&
+                (q.isEmpty() || it.title.lowercase().contains(q) || it.artist.lowercase().contains(q))
         }
         return when (sort) {
             Sort.TITLE -> base
             Sort.ARTIST -> base.sortedBy { it.artist.lowercase() }
             Sort.BPM -> base.sortedBy { lib.bpmOf(it.key).let { b -> if (b <= 0) 999.0 else b } }
         }
+    }
+
+    /** Pastas que têm música, com a quantidade de músicas (contando subpastas). */
+    fun folderList(): List<Pair<String, Int>> {
+        val direct = songs.groupingBy { it.folder }.eachCount()
+        val all = HashMap<String, Int>()
+        for ((f, n) in direct) {
+            if (f.isEmpty()) { all[""] = (all[""] ?: 0) + n; continue }
+            val parts = f.split('/')
+            for (k in 1..parts.size) {
+                val p = parts.take(k).joinToString("/")
+                all[p] = (all[p] ?: 0) + n
+            }
+        }
+        return all.entries.sortedBy { it.key.lowercase() }.map { it.key to it.value }
+    }
+
+    fun toggleFolder(path: String) {
+        val cur = folders.toMutableSet()
+        if (path in cur) cur.remove(path)
+        else {
+            // marcar uma pasta já inclui as subpastas: tira as subpastas marcadas para não duplicar
+            cur.removeAll { it.startsWith("$path/") }
+            cur.add(path)
+        }
+        setFolders(cur)
+    }
+
+    fun setFolders(s: Set<String>) {
+        folders = s
+        prefs.edit().putStringSet("folders", s).apply()
     }
 
     fun requestLoad(i: Int, song: Song) {
