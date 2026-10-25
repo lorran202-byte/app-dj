@@ -28,7 +28,7 @@ class RecordingTarget(
     fun discard(ctx: Context) {
         try { channel.close() } catch (_: Exception) {}
         try { pfd?.close() } catch (_: Exception) {}
-        if (uri != null) runCatching { ctx.contentResolver.delete(uri, null, null) }
+        uri?.let { u -> runCatching { ctx.contentResolver.delete(u, null, null) } }
         file?.delete()
     }
 
