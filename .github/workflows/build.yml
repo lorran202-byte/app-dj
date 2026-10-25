@@ -75,11 +75,14 @@ jobs:
 
       - name: Publicar APK no branch builds
         run: |
-          mkdir out && cp app/build/outputs/apk/release/app-release.apk out/
+          mkdir out
+          # arquivos no git têm limite de 100 MB: o APK vai em partes de 45 MB
+          split -b 45m -d app/build/outputs/apk/release/app-release.apk out/app-release.apk.part
+          sha256sum app/build/outputs/apk/release/app-release.apk | cut -d' ' -f1 > out/app-release.sha256
           cd out
           git init -q -b builds
           git config user.name "build-bot"
           git config user.email "build-bot@users.noreply.github.com"
-          git add app-release.apk
+          git add -A
           git commit -qm "APK de ${GITHUB_SHA::7}"
           git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" builds

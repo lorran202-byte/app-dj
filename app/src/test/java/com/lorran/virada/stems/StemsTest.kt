@@ -84,25 +84,30 @@ class StemsTest {
         return deck to arrayOf(v, d, o)
     }
 
-    private fun corr(a: FloatArray, ref: ShortBuffer, startFrame: Int): Double {
-        var s = 0.0
-        for (i in 0 until a.size / 2) s += a[i * 2] * (ref.get((startFrame + i) * 2) / 32768.0)
-        return s / (a.size / 2)
+    /** Amplitude da frequência [f] no canal esquerdo (Goertzel). */
+    private fun amp(x: FloatArray, f: Double): Double {
+        val n = x.size / 2
+        val w = 2 * PI * f / SR
+        val c = 2 * kotlin.math.cos(w)
+        var s1 = 0.0; var s2 = 0.0
+        for (i in 0 until n) { val s0 = x[i * 2] + c * s1 - s2; s2 = s1; s1 = s0 }
+        val p = s1 * s1 + s2 * s2 - c * s1 * s2
+        return 2 * kotlin.math.sqrt(p) / n
     }
 
     @Test fun mutingVocalsRemovesOnlyVocals() {
-        val (d, refs) = stemDeck(false)
+        val (d, _) = stemDeck(false)
         val out = FloatArray(Engine.BLOCK * 2)
         d.render(out, Engine.BLOCK)
         d.playing = true
         d.stemGain[0] = 0f
         repeat(200) { d.render(out, Engine.BLOCK) }
-        val pos = d.position.toInt()
-        d.render(out, Engine.BLOCK)
-        val power = (6000.0 / 32768) * (6000.0 / 32768) / 2
-        assertTrue("voz continua: ${corr(out, refs[0], pos)}", abs(corr(out, refs[0], pos)) < power * 0.05)
-        assertEquals("bateria sumiu", power, corr(out, refs[1], pos), power * 0.1)
-        assertEquals("melodia sumiu", power, corr(out, refs[2], pos), power * 0.1)
+        val all = FloatArray(Engine.BLOCK * 2 * 100)
+        repeat(100) { k -> d.render(out, Engine.BLOCK); System.arraycopy(out, 0, all, k * out.size, out.size) }
+        val a = 6000.0 / 32768
+        assertTrue("voz continua: ${amp(all, 440.0)}", amp(all, 440.0) < a * 0.02)
+        assertEquals("bateria sumiu", a, amp(all, 100.0), a * 0.08)
+        assertEquals("melodia sumiu", a, amp(all, 1000.0), a * 0.08)
     }
 
     @Test fun acapellaWithKeyLockStaysClean() {
