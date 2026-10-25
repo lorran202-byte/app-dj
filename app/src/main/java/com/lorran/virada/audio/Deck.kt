@@ -56,8 +56,7 @@ class Deck(val index: Int) {
     private var lastFilter = 99f
     private val lpf = Biquad()
     private val hpf = Biquad()
-    private val isoLow = Biquad().apply { lowPass(220f, 0.707f) }
-    private val isoHigh = Biquad().apply { highPass(3800f, 0.707f) }
+    private val iso = ThreeBand()
     private val echo = Echo()
     private val flanger = Flanger()
     private val reverb = Reverb()
@@ -192,11 +191,9 @@ class Deck(val index: Int) {
             }
             if (p < 0) p = 0.0
 
-            // isolador de 3 bandas (soma exata quando tudo está no meio)
-            val lowL = isoLow.l(l); val lowR = isoLow.r(r)
-            val hiL = isoHigh.l(l); val hiR = isoHigh.r(r)
-            l = lowL * gLow + (l - lowL - hiL) * gMid + hiL * gHigh
-            r = lowR * gLow + (r - lowR - hiR) * gMid + hiR * gHigh
+            // isolador de 3 bandas (Linkwitz-Riley: volume plano com tudo no meio, corte total no zero)
+            iso.process(l, r, gLow, gMid, gHigh)
+            l = iso.outL; r = iso.outR
 
             if (useLp) { l = lpf.l(l); r = lpf.r(r) }
             else if (useHp) { l = hpf.l(l); r = hpf.r(r) }

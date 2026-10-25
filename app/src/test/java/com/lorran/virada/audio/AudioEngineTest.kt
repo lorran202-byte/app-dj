@@ -130,13 +130,9 @@ class AudioEngineTest {
         run(d, 100)
         val out = FloatArray(Engine.BLOCK * 2)
         d.render(out, Engine.BLOCK)
-        var maxDiff = 0f
-        val start = d.position - Engine.BLOCK
-        for (i in 0 until Engine.BLOCK) {
-            val src = buf.get(((start + i).toInt()) * 2) / 32768f
-            maxDiff = maxOf(maxDiff, abs(out[i * 2] - src))
-        }
-        assertTrue("EQ no meio altera o som: $maxDiff", maxDiff < 0.02f)
+        val src = FloatArray(Engine.BLOCK * 2) { k -> buf.get(k) / 32768f }
+        val ratio = rms(out) / rms(src)
+        assertEquals("EQ no meio muda o volume", 1.0, ratio.toDouble(), 0.03)
     }
 
     @Test fun killLowRemovesBass() {
@@ -152,7 +148,23 @@ class AudioEngineTest {
         run(d, 1)
         d.playing = true
         val out = run(d, 200)
-        assertTrue("grave não sumiu: ${rms(out)}", rms(out) < 0.06f)
+        assertTrue("grave não sumiu: ${rms(out)}", rms(out) < 0.02f)
+    }
+
+    @Test fun killHighKeepsBass() {
+        val frames = SR * 3
+        val arr = ShortArray(frames * 2)
+        for (i in 0 until frames) {
+            val v = (sin(2 * PI * 60 * i / SR) * 16000).toInt().toShort()
+            arr[i * 2] = v; arr[i * 2 + 1] = v
+        }
+        val d = deckWith(ShortBuffer.wrap(arr))
+        d.autoGain = false
+        d.eqHigh = 0f; d.eqMid = 0f
+        run(d, 1)
+        d.playing = true
+        val out = run(d, 200)
+        assertEquals("grave sozinho perdeu volume", 0.346, rms(out).toDouble(), 0.03)
     }
 
     @Test fun effectsStayStable() {

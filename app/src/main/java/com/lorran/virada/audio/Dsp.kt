@@ -63,6 +63,42 @@ class Biquad {
     }
 }
 
+/** Isolador de 3 bandas com cruzamentos Linkwitz-Riley de 4ª ordem (220 Hz e 3,8 kHz). */
+class ThreeBand(lowF: Float = 220f, highF: Float = 3800f) {
+    private val q = 0.70710677f
+    private val lp1a = Biquad().apply { lowPass(lowF, q) }
+    private val lp1b = Biquad().apply { lowPass(lowF, q) }
+    private val hp1a = Biquad().apply { highPass(lowF, q) }
+    private val hp1b = Biquad().apply { highPass(lowF, q) }
+    private val lp2a = Biquad().apply { lowPass(highF, q) }
+    private val lp2b = Biquad().apply { lowPass(highF, q) }
+    private val hp2a = Biquad().apply { highPass(highF, q) }
+    private val hp2b = Biquad().apply { highPass(highF, q) }
+    // passa-tudo no grave para alinhar a fase com o corte de 3,8 kHz
+    private val apLa = Biquad().apply { lowPass(highF, q) }
+    private val apLb = Biquad().apply { lowPass(highF, q) }
+    private val apHa = Biquad().apply { highPass(highF, q) }
+    private val apHb = Biquad().apply { highPass(highF, q) }
+    var outL = 0f
+    var outR = 0f
+
+    fun process(l: Float, r: Float, gLow: Float, gMid: Float, gHigh: Float) {
+        var low = lp1b.l(lp1a.l(l))
+        val restL = hp1b.l(hp1a.l(l))
+        low = apLb.l(apLa.l(low)) + apHb.l(apHa.l(low))
+        val midL = lp2b.l(lp2a.l(restL))
+        val hiL = hp2b.l(hp2a.l(restL))
+        outL = low * gLow + midL * gMid + hiL * gHigh
+
+        var lowR = lp1b.r(lp1a.r(r))
+        val restR = hp1b.r(hp1a.r(r))
+        lowR = apLb.r(apLa.r(lowR)) + apHb.r(apHa.r(lowR))
+        val midR = lp2b.r(lp2a.r(restR))
+        val hiR = hp2b.r(hp2a.r(restR))
+        outR = lowR * gLow + midR * gMid + hiR * gHigh
+    }
+}
+
 fun softClip(x: Float): Float {
     val a = abs(x)
     if (a < 0.8f) return x

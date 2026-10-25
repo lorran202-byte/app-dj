@@ -2,7 +2,6 @@ package com.lorran.virada.audio
 
 import android.media.AudioAttributes
 import android.media.AudioFormat
-import android.media.AudioManager
 import android.media.AudioTrack
 import android.os.Build
 import android.os.Process
@@ -74,7 +73,6 @@ object Engine {
             )
             .setBufferSizeInBytes(size)
             .setTransferMode(AudioTrack.MODE_STREAM)
-            .setSessionId(AudioManager.AUDIO_SESSION_ID_GENERATE)
         if (Build.VERSION.SDK_INT >= 26) b.setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
         return b.build()
     }
