@@ -1,0 +1,54 @@
+name: Compilar APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Chave de assinatura
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+          KS_PASS: ${{ secrets.KS_PASS }}
+        run: |
+          mkdir -p keystore
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > keystore/virada.jks
+          else
+            echo "::warning::Sem chave fixa (secrets KEYSTORE_B64/KS_PASS); usando chave temporária"
+            keytool -genkeypair -keystore keystore/virada.jks -alias virada -keyalg RSA -keysize 2048 \
+              -validity 10000 -storepass temporaria -keypass temporaria -dname "CN=Virada DJ, C=BR"
+            echo "storePassword=temporaria" > keystore/keystore.properties
+          fi
+
+      - name: Compilar
+        env:
+          KS_PASS: ${{ secrets.KS_PASS }}
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --stacktrace
+
+      - name: Conferir APK
+        run: |
+          AAPT=$(ls $ANDROID_HOME/build-tools/*/aapt2 | tail -1)
+          $AAPT dump badging app/build/outputs/apk/release/app-release.apk | head -5
+          ls -la app/build/outputs/apk/release/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: app/build/outputs/apk/release/app-release.apk
