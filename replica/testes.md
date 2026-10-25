@@ -21,3 +21,8 @@ Bugs abertos: nenhum S1/S2 conhecido.
 - Deck: mutar a voz zera só os 440 Hz (< 2%), bateria e melodia ficam (± 8%); acapela + keylock a 1,06x mantém tom e volume da voz.
 - APK 111 MB (modelos 79 MB + ONNX Runtime arm64/armv7). Publicado em partes de 45 MB no branch builds (limite de 100 MB do git).
 - Audius: busca e em alta conferidos pela API pública (sem chave). Download e separação não testados em aparelho real.
+
+## 1.5 — Fila, Auto DJ e Estúdio IA
+- Auto DJ (5 testes): plano começa no início do compasso e termina antes do fade; pula silêncio da entrada; dobro/metade de BPM conta como igual; BPM muito diferente usa saída com eco (≤ 8 batidas); entrada tardia começa na batida seguinte; crossfader só avança e os dois graves nunca ficam cheios juntos.
+- Estúdio (4 testes): esticador muda tempo (×1,1) e tom (+2 semitons) independentes; tom de progressão I–IV–V–I em Sol = Sol; mashup tem voz de A (no tom ajustado) + melodia de B, sem voz de B nem melodia de A; remix nos 5 estilos tem intro+subida+música+outro, melodia no tom original e som no drop, sem estouro.
+- Não testado em aparelho real: Auto DJ ao vivo e tempo de processamento do estúdio no celular.

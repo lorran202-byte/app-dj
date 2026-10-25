@@ -24,3 +24,7 @@ F21,Biblioteca,Streaming online (so grandes servicos com parceria; Audius removi
 M01,Geral,Tudo liberado sem assinatura e sem anuncios,must,feito
 M02,Geral,Abre rapido sem travar na tela de carregamento,must,feito
 M03,Geral,Tela sempre acesa durante a festa e audio continua em segundo plano,should,feito
+F23,DJ,Fila de proximas musicas,must,feito
+F24,DJ,Auto DJ (mixa a fila sozinho; continua com BPM parecido),should,feito
+F25,IA,Mashup (voz de A + instrumental de B; BPM e tom),could,feito
+F26,IA,Remix com batida nova por estilo (intro/subida/drop/outro),could,feito
