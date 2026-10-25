@@ -21,6 +21,15 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      - name: Modelos de separação (branch models)
+        run: |
+          git fetch --depth 1 origin models
+          mkdir -p app/src/main/assets/models
+          for n in vocals drums bass other; do
+            git show FETCH_HEAD:$n.fp16.onnx > app/src/main/assets/models/$n.fp16.onnx
+          done
+          ls -la app/src/main/assets/models
+
       - name: Compilar
         run: |
           chmod +x gradlew

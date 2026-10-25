@@ -1,6 +1,5 @@
 package com.lorran.virada.audio
 
-import java.nio.ShortBuffer
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.roundToInt
@@ -14,6 +13,12 @@ import kotlin.math.sqrt
  * da posição atual que encaixa melhor na continuação do pedaço anterior e somamos com janela Hann.
  * Como os pedaços são tocados na velocidade original, o tom não muda.
  */
+/** De onde o keylock lê as amostras (já com as partes da música misturadas). */
+interface SampleSource {
+    fun l(f: Int): Float
+    fun r(f: Int): Float
+}
+
 class KeyLock {
     companion object {
         const val HOP = 1024            // ~23 ms
@@ -33,22 +38,21 @@ class KeyLock {
     /** Esquece o estado (depois de pular, carregar música ou sair do keylock). */
     fun reset() { primed = false; idx = HOP }
 
-    private inline fun mono(buf: ShortBuffer, f: Int): Float =
-        (buf.get(f * 2) + buf.get(f * 2 + 1)).toFloat()
+    private fun mono(buf: SampleSource, f: Int): Float = buf.l(f) + buf.r(f)
 
-    private fun prime(buf: ShortBuffer, frames: Int, pos: Int) {
+    private fun prime(buf: SampleSource, frames: Int, pos: Int) {
         // finge que o pedaço anterior começou em pos-HOP: a cauda é exatamente o áudio a partir de pos
         for (k in 0 until HOP) {
             val f = (pos + k).coerceIn(0, frames - 1)
             val w = window[HOP + k] / 32768f
-            tail[k * 2] = buf.get(f * 2) * w
-            tail[k * 2 + 1] = buf.get(f * 2 + 1) * w
+            tail[k * 2] = buf.l(f) * w
+            tail[k * 2 + 1] = buf.r(f) * w
         }
         natural = pos
         primed = true
     }
 
-    private fun bestStart(buf: ShortBuffer, frames: Int, nominal: Int): Int {
+    private fun bestStart(buf: SampleSource, frames: Int, nominal: Int): Int {
         val lo = (nominal - SEEK).coerceAtLeast(0)
         val hi = (nominal + SEEK).coerceAtMost(frames - CMP - 1)
         val nat = natural.coerceIn(0, frames - CMP - 1)
@@ -72,7 +76,7 @@ class KeyLock {
     }
 
     /** Correlação normalizada entre a continuação natural e o candidato. */
-    private fun score(buf: ShortBuffer, nat: Int, cand: Int): Double {
+    private fun score(buf: SampleSource, nat: Int, cand: Int): Double {
         var xy = 0.0
         var yy = 1e-3
         var k = 0
@@ -86,18 +90,18 @@ class KeyLock {
         return xy / sqrt(yy)
     }
 
-    private fun nextGrain(buf: ShortBuffer, frames: Int, nominal: Int, gain: Float) {
+    private fun nextGrain(buf: SampleSource, frames: Int, nominal: Int, gain: Float) {
         val s = bestStart(buf, frames, nominal)
         val g = gain / 32768f
         for (k in 0 until HOP) {
             val f1 = (s + k).coerceAtMost(frames - 1)
             val w1 = window[k] * g
-            hop[k * 2] = tail[k * 2] * gain + buf.get(f1 * 2) * w1
-            hop[k * 2 + 1] = tail[k * 2 + 1] * gain + buf.get(f1 * 2 + 1) * w1
+            hop[k * 2] = tail[k * 2] * gain + buf.l(f1) * w1
+            hop[k * 2 + 1] = tail[k * 2 + 1] * gain + buf.r(f1) * w1
             val f2 = (s + HOP + k).coerceAtMost(frames - 1)
             val w2 = window[HOP + k] / 32768f
-            tail[k * 2] = buf.get(f2 * 2) * w2
-            tail[k * 2 + 1] = buf.get(f2 * 2 + 1) * w2
+            tail[k * 2] = buf.l(f2) * w2
+            tail[k * 2 + 1] = buf.r(f2) * w2
         }
         natural = s + HOP
         idx = 0
@@ -107,7 +111,7 @@ class KeyLock {
     var outR = 0f
 
     /** Próxima amostra estéreo, com a música na posição [pos] da linha do tempo. */
-    fun next(buf: ShortBuffer, frames: Int, pos: Double, gain: Float) {
+    fun next(buf: SampleSource, frames: Int, pos: Double, gain: Float) {
         if (frames < WIN * 2) { outL = 0f; outR = 0f; return }
         val p = pos.roundToInt()
         if (!primed) prime(buf, frames, p)

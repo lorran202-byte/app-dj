@@ -1,1 +1,2 @@
-# sem reflexão no app; regras padrão bastam
+-keep class ai.onnxruntime.** { *; }
+-dontwarn ai.onnxruntime.**

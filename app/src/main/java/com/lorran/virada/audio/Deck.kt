@@ -5,7 +5,10 @@ import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.pow
 
-class LoadedTrack(val pcm: ShortBuffer, val frames: Int, val analysis: Analysis)
+class LoadedTrack(val pcm: ShortBuffer, val frames: Int, val analysis: Analysis) {
+    /** Voz, bateria e baixo separados (null até separar). A melodia é a música menos as três. */
+    @Volatile var stems: Array<ShortBuffer>? = null
+}
 
 object FxId {
     const val ECHO = 0
@@ -64,6 +67,38 @@ class Deck(val index: Int) {
     private val reverb = Reverb()
     private val phaser = Phaser()
     private val kl = KeyLock()
+
+    /** Volume de cada parte: voz, bateria, baixo, melodia (0 = mudo, 1 = normal). */
+    val stemGain = FloatArray(4) { 1f }
+    private val sgFrom = FloatArray(4) { 1f }
+    private val sgTo = FloatArray(4) { 1f }
+    private var cur: ShortBuffer? = null
+    private var stV: ShortBuffer? = null
+    private var stD: ShortBuffer? = null
+    private var stB: ShortBuffer? = null
+    private var useStems = false
+    private var cMix = 1f; private var cV = 0f; private var cD = 0f; private var cB = 0f
+
+    /** Lê a amostra já com as partes misturadas: melodia·música + (g−melodia)·cada parte. */
+    private val src = object : SampleSource {
+        override fun l(f: Int): Float = sample(f * 2)
+        override fun r(f: Int): Float = sample(f * 2 + 1)
+    }
+
+    private fun sample(a: Int): Float {
+        val m = cur!!.get(a).toFloat()
+        if (!useStems) return m
+        return cMix * m + cV * stV!!.get(a) + cD * stD!!.get(a) + cB * stB!!.get(a)
+    }
+
+    private fun setCoefs(i: Int, n: Int) {
+        val t = (i + 1).toFloat() / n
+        val gv = sgFrom[0] + (sgTo[0] - sgFrom[0]) * t
+        val gd = sgFrom[1] + (sgTo[1] - sgFrom[1]) * t
+        val gb = sgFrom[2] + (sgTo[2] - sgFrom[2]) * t
+        val go = sgFrom[3] + (sgTo[3] - sgFrom[3]) * t
+        cMix = go; cV = gv - go; cD = gd - go; cB = gb - go
+    }
     private var klMix = 0f
 
     private var gLow = 1f; private var gMid = 1f; private var gHigh = 1f
@@ -119,6 +154,19 @@ class Deck(val index: Int) {
             return
         }
         val buf = t.pcm
+        cur = buf
+        val stems = t.stems
+        var ramping = false
+        for (k in 0 until 4) {
+            sgFrom[k] = sgTo[k]
+            val target = if (stems == null) 1f else stemGain[k]
+            sgTo[k] = sgFrom[k] + (target - sgFrom[k]) * 0.35f
+            if (abs(sgTo[k] - target) < 0.002f) sgTo[k] = target
+            if (sgTo[k] != sgFrom[k]) ramping = true
+        }
+        useStems = stems != null && (ramping || sgTo.any { it != 1f })
+        if (useStems) { stV = stems!![0]; stD = stems[1]; stB = stems[2] }
+        if (!useStems) { cMix = 1f; cV = 0f; cD = 0f; cB = 0f }
         val maxF = (t.frames - 2).coerceAtLeast(0).toDouble()
         val gain = trim * (if (autoGain) t.analysis.gain else 1f)
         val bf = beatFrames
@@ -165,6 +213,7 @@ class Deck(val index: Int) {
         val le = loopEnd
 
         for (i in 0 until n) {
+            if (useStems) setCoefs(i, n)
             if (scratching) {
                 val diff = scratchTarget - p
                 curRate = (diff / 220.0).coerceIn(-8.0, 8.0)
@@ -189,13 +238,13 @@ class Deck(val index: Int) {
                 val i0 = p.toInt()
                 val fr = (p - i0).toFloat()
                 val a = i0 * 2
-                val l0 = buf.get(a).toFloat(); val r0 = buf.get(a + 1).toFloat()
-                val l1 = buf.get(a + 2).toFloat(); val r1 = buf.get(a + 3).toFloat()
+                val l0 = sample(a); val r0 = sample(a + 1)
+                val l1 = sample(a + 2); val r1 = sample(a + 3)
                 l = (l0 + (l1 - l0) * fr) * (gain / 32768f)
                 r = (r0 + (r1 - r0) * fr) * (gain / 32768f)
             }
             if (klMix > 0f) {
-                kl.next(buf, t.frames, p, gain)
+                kl.next(src, t.frames, p, gain)
                 l = l * (1f - klMix) + kl.outL * klMix
                 r = r * (1f - klMix) + kl.outR * klMix
             }

@@ -9,6 +9,13 @@ import com.lorran.virada.audio.Analysis
 import com.lorran.virada.audio.Analyzer
 import com.lorran.virada.audio.Decoder
 import com.lorran.virada.audio.LoadedTrack
+import com.lorran.virada.stems.NullSink
+import com.lorran.virada.stems.OrtMaskModel
+import com.lorran.virada.stems.PcmSink
+import com.lorran.virada.stems.PcmSource
+import com.lorran.virada.stems.SpleeterSeparator
+import com.lorran.virada.stems.StemId
+import java.nio.ShortBuffer
 import java.io.File
 
 data class Song(
@@ -17,6 +24,10 @@ data class Song(
     val title: String,
     val artist: String,
     val durationMs: Long,
+    /** Id no Audius quando a música vem do streaming. */
+    val streamId: String? = null,
+    val hintBpm: Double = 0.0,
+    val artwork: String? = null,
 )
 
 class Library(private val ctx: Context) {
@@ -75,6 +86,46 @@ class Library(private val ctx: Context) {
 
     fun bpmOf(key: String): Double = bpms.getString(key, null)?.toDoubleOrNull() ?: 0.0
 
+    private fun stemFile(key: String, i: Int) = File(cacheDir, "$key.${StemId.SUFFIX[i]}.pcm")
+
+    /** Partes já separadas no cache (voz, bateria, baixo), ou null. */
+    fun loadStems(key: String, frames: Int): Array<ShortBuffer>? {
+        val files = StemId.SAVED.indices.map { stemFile(key, it) }
+        if (files.any { !it.exists() || it.length() != frames.toLong() * 4 }) return null
+        return Array(files.size) { Decoder.map(files[it]) }
+    }
+
+    /** Separa voz, bateria, baixo e melodia no próprio celular e guarda no cache. */
+    fun separate(key: String, t: LoadedTrack, onProgress: (Float) -> Unit, isCancelled: () -> Boolean): Array<ShortBuffer> {
+        loadStems(key, t.frames)?.let { return it }
+        val tid = android.os.Process.myTid()
+        val oldPrio = android.os.Process.getThreadPriority(tid)
+        android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
+        try { return separateNow(key, t, onProgress, isCancelled) }
+        finally { android.os.Process.setThreadPriority(oldPrio) }
+    }
+
+    private fun separateNow(key: String, t: LoadedTrack, onProgress: (Float) -> Unit, isCancelled: () -> Boolean): Array<ShortBuffer> {
+        val parts = StemId.SAVED.indices.map { File(stemFile(key, it).path + ".tmp") }
+        val sinks = parts.map { PcmSink(it) }
+        try {
+            OrtMaskModel.open(ctx).use { model ->
+                SpleeterSeparator(model).separate(
+                    PcmSource(t.pcm.duplicate(), t.frames.toLong()),
+                    sinks + NullSink,
+                    onProgress, isCancelled,
+                )
+            }
+        } catch (e: Throwable) {
+            sinks.forEach { runCatching { it.close() } }
+            parts.forEach { it.delete() }
+            throw e
+        }
+        sinks.forEach { it.close() }
+        parts.forEachIndexed { i, f -> f.renameTo(stemFile(key, i)) }
+        return loadStems(key, t.frames) ?: error("Partes incompletas")
+    }
+
     fun loadCues(key: String): DoubleArray {
         val s = cues.getString(key, null) ?: return DoubleArray(5) { -1.0 }
         val p = s.split(',').mapNotNull { it.toDoubleOrNull() }
@@ -93,24 +144,47 @@ class Library(private val ctx: Context) {
         if (pcm.exists() && ana.exists()) analysis = Analysis.load(ana)
         if (analysis == null || !pcm.exists()) {
             prune()
-            Decoder.decode(ctx, song.uri, pcm, onProgress)
+            val sid = song.streamId
+            if (sid != null) {
+                val dl = File(cacheDir, "${song.key}.dl")
+                try {
+                    Audius.download(sid, dl) { onProgress(it * 0.5f) }
+                    Decoder.decode(ctx, Uri.fromFile(dl), pcm) { onProgress(0.5f + it * 0.5f) }
+                } finally {
+                    dl.delete()
+                }
+            } else Decoder.decode(ctx, song.uri, pcm, onProgress)
             val buf = Decoder.map(pcm)
             analysis = Analyzer.analyze(buf, buf.limit() / 2)
             analysis.save(ana)
         }
         pcm.setLastModified(System.currentTimeMillis())
+        stemFile(song.key, 0).takeIf { it.exists() }?.setLastModified(System.currentTimeMillis())
         if (analysis.bpm > 0) bpms.edit().putString(song.key, analysis.bpm.toString()).apply()
         val buf = Decoder.map(pcm)
         onProgress(1f)
-        return LoadedTrack(buf, buf.limit() / 2, analysis)
+        val t = LoadedTrack(buf, buf.limit() / 2, analysis)
+        t.stems = loadStems(song.key, t.frames)
+        return t
     }
 
     private fun prune() {
-        val files = cacheDir.listFiles { f -> f.name.endsWith(".pcm") }?.sortedByDescending { it.lastModified() } ?: return
+        val files = cacheDir.listFiles { f -> f.name.endsWith(".pcm") && f.name.count { it == '.' } == 1 }?.sortedByDescending { it.lastModified() } ?: return
         files.drop(15).forEach { f ->
+            val key = f.name.removeSuffix(".pcm")
             f.delete()
-            File(f.path.removeSuffix(".pcm") + ".ana").delete()
+            File(cacheDir, "$key.ana").delete()
+            StemId.SAVED.indices.forEach { stemFile(key, it).delete() }
         }
-        cacheDir.listFiles { f -> f.name.endsWith(".src") }?.forEach { it.delete() }
+        // partes separadas ocupam bastante: guarda só as das 6 músicas mais recentes
+        val withStems = cacheDir.listFiles { f -> f.name.endsWith(".${StemId.SUFFIX[0]}.pcm") }
+            ?.sortedByDescending { it.lastModified() } ?: emptyList()
+        withStems.drop(6).forEach { f ->
+            val key = f.name.removeSuffix(".${StemId.SUFFIX[0]}.pcm")
+            StemId.SAVED.indices.forEach { stemFile(key, it).delete() }
+        }
+        cacheDir.listFiles { f ->
+            f.name.endsWith(".src") || f.name.endsWith(".tmp") || f.name.endsWith(".part") || f.name.endsWith(".dl")
+        }?.forEach { it.delete() }
     }
 }

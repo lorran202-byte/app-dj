@@ -19,8 +19,9 @@ android {
         applicationId = "com.lorran.virada"
         minSdk = 24
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1"
+        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
+        versionCode = 3
+        versionName = "1.2"
     }
 
     signingConfigs {
@@ -49,6 +50,7 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true }
+    androidResources { noCompress += "onnx" }
     lint { abortOnError = false }
     testOptions { unitTests.isReturnDefaultValues = true }
 }
@@ -65,5 +67,6 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.0")
     implementation("androidx.core:core-ktx:1.16.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")
     testImplementation("junit:junit:4.13.2")
 }

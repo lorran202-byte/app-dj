@@ -170,7 +170,7 @@ fun ToolStrip(i: Int, vm: DjViewModel, color: Color) {
     val ui = vm.decks[i]
     Column(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth().height(24.dp), verticalAlignment = Alignment.CenterVertically) {
-            listOf("CUES", "LOOPS", "FX").forEachIndexed { k, t ->
+            listOf("CUES", "LOOPS", "FX", "STEMS").forEachIndexed { k, t ->
                 Text(
                     t,
                     color = if (ui.tab == k) color else C.TextDim,
@@ -202,6 +202,7 @@ fun ToolStrip(i: Int, vm: DjViewModel, color: Color) {
                         onTap = { vm.loop(i, b) },
                     )
                 }
+                3 -> StemsRow(i, vm, color)
                 else -> {
                     val names = listOf("ECO", "FLANG", "REVERB", "PHASER", "GATE", "ROLL", "REVERSO", "FREIO")
                     for (fx in 0 until FxId.COUNT) {
@@ -395,5 +396,56 @@ fun JogWheel(i: Int, vm: DjViewModel, tick: State<Long>, color: Color, modifier:
 fun BigMessage(text: String, modifier: Modifier = Modifier) {
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Text(text, color = C.TextDim, fontSize = 13.sp)
+    }
+}
+
+@Composable
+private fun RowScope.StemsRow(i: Int, vm: DjViewModel, color: Color) {
+    val ui = vm.decks[i]
+    when (ui.stemState) {
+        0 -> PadButton(
+            "SEPARAR VOZ E INSTRUMENTOS", C.Accent, Modifier.weight(1f).fillMaxHeight(),
+            enabled = ui.song != null && ui.loading < 0f,
+            sub = if (ui.song == null) "carregue uma música" else "leva cerca de 1 minuto · funciona sem internet",
+            onTap = { vm.separateStems(i) },
+        )
+        1 -> {
+            Column(
+                Modifier.weight(1f).fillMaxHeight().background(C.Surface2, RoundedCornerShape(6.dp)).padding(horizontal = 8.dp),
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Text(
+                    "Separando… ${(ui.stemProgress * 100).toInt()}%  (pode continuar tocando)",
+                    color = C.Text, fontSize = 10.sp, maxLines = 1,
+                )
+                Spacer(Modifier.height(4.dp))
+                LinearProgressIndicator(
+                    progress = { ui.stemProgress },
+                    modifier = Modifier.fillMaxWidth().height(4.dp), color = C.Accent, trackColor = C.Line,
+                )
+            }
+            PadButton("CANCELAR", C.TextDim, Modifier.width(70.dp).fillMaxHeight(), fontSize = 9.sp,
+                onTap = { ui.stemJob?.cancel() })
+        }
+        else -> {
+            val names = listOf("VOZ", "BATERIA", "BAIXO", "MELODIA")
+            for (k in 0 until 4) {
+                PadButton(
+                    names[k], color, Modifier.weight(1f).fillMaxHeight(), active = ui.stemOn[k],
+                    fontSize = 9.sp, sub = if (ui.stemOn[k]) "tocando" else "mudo",
+                    onTap = { vm.toggleStem(i, k) },
+                )
+            }
+            val acapella = ui.stemOn[0] && !ui.stemOn[1] && !ui.stemOn[2] && !ui.stemOn[3]
+            val instrumental = !ui.stemOn[0] && ui.stemOn[1] && ui.stemOn[2] && ui.stemOn[3]
+            PadButton(
+                "ACAPELA", C.Accent, Modifier.weight(1f).fillMaxHeight(), active = acapella, fontSize = 9.sp,
+                sub = "só voz", onTap = { vm.stemPreset(i, if (acapella) 0 else 1) },
+            )
+            PadButton(
+                "SEM VOZ", C.Accent, Modifier.weight(1f).fillMaxHeight(), active = instrumental, fontSize = 9.sp,
+                sub = "instrumental", onTap = { vm.stemPreset(i, if (instrumental) 0 else 2) },
+            )
+        }
     }
 }

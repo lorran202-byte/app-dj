@@ -23,6 +23,8 @@ import com.lorran.virada.data.RecordingTarget
 import com.lorran.virada.data.Recordings
 import com.lorran.virada.data.Song
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import com.lorran.virada.data.Audius
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -54,6 +56,11 @@ class DeckUi(val index: Int) {
     var level by mutableFloatStateOf(0f)
     var tempo by mutableDoubleStateOf(1.0)
     var keyLock by mutableStateOf(false)
+    /** 0 = não separada, 1 = separando, 2 = pronta */
+    var stemState by mutableIntStateOf(0)
+    var stemProgress by mutableFloatStateOf(0f)
+    val stemOn = mutableStateListOf(true, true, true, true)
+    var stemJob: Job? = null
 }
 
 enum class Sort { TITLE, ARTIST, BPM }
@@ -91,6 +98,15 @@ class DjViewModel(app: Application) : AndroidViewModel(app) {
     var recSeconds by mutableLongStateOf(0L)
     var recList by mutableStateOf(recs.list())
     var message by mutableStateOf<String?>(null)
+
+    // ---------- streaming (Audius) ----------
+    var online by mutableStateOf(false)
+    var onlineGenre by mutableIntStateOf(1)
+    var onlineQuery by mutableStateOf("")
+    var onlineResults by mutableStateOf<List<Song>>(emptyList())
+    var onlineLoading by mutableStateOf(false)
+    var onlineError by mutableStateOf<String?>(null)
+    private var onlineJob: Job? = null
 
     private var recTarget: RecordingTarget? = null
 
@@ -158,6 +174,101 @@ class DjViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun openOnline() {
+        online = true
+        if (onlineResults.isEmpty() && !onlineLoading) fetchOnline()
+    }
+
+    fun fetchOnline(query: String? = null) {
+        if (query != null) onlineQuery = query
+        onlineJob?.cancel()
+        onlineLoading = true
+        onlineError = null
+        val q = onlineQuery.trim()
+        val genre = Audius.genres[onlineGenre].second
+        onlineJob = viewModelScope.launch {
+            try {
+                onlineResults = withContext(Dispatchers.IO) {
+                    if (q.isNotEmpty()) Audius.search(q) else Audius.trending(genre)
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                onlineError = "Sem internet ou o Audius não respondeu. Tente de novo."
+            } finally {
+                onlineLoading = false
+            }
+        }
+    }
+
+    fun pickGenre(g: Int) {
+        onlineGenre = g
+        onlineQuery = ""
+        fetchOnline()
+    }
+
+    fun onlineSorted(): List<Song> = when (sort) {
+        Sort.TITLE -> onlineResults
+        Sort.ARTIST -> onlineResults.sortedBy { it.artist.lowercase() }
+        Sort.BPM -> onlineResults.sortedBy { if (it.hintBpm <= 0) 999.0 else it.hintBpm }
+    }
+
+    // ---------- separar voz e instrumentos ----------
+    private fun applyStems(i: Int) {
+        val ui = decks[i]
+        for (k in 0 until 4) Engine.decks[i].stemGain[k] = if (ui.stemOn[k]) 1f else 0f
+    }
+
+    fun separateStems(i: Int) {
+        val ui = decks[i]
+        val d = Engine.decks[i]
+        val t = d.track ?: return
+        val song = ui.song ?: return
+        if (ui.stemState != 0) return
+        ui.stemState = 1
+        ui.stemProgress = 0f
+        val job = viewModelScope.launch {
+            try {
+                val stems = withContext(Dispatchers.Default) {
+                    val me = coroutineContext[Job]
+                    lib.separate(song.key, t, { ui.stemProgress = it }, { me?.isActive == false })
+                }
+                t.stems = stems
+                if (d.track === t) {
+                    ui.stemState = 2
+                    applyStems(i)
+                    message = "Pronto: voz e instrumentos separados no deck ${if (i == 0) "A" else "B"}"
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                if (d.track === t) ui.stemState = 0
+            } catch (e: OutOfMemoryError) {
+                ui.stemState = 0
+                message = "Faltou memória para separar essa música"
+            } catch (e: Throwable) {
+                ui.stemState = 0
+                message = "Não consegui separar essa música"
+            }
+        }
+        ui.stemJob = job
+    }
+
+    fun toggleStem(i: Int, k: Int) {
+        val ui = decks[i]
+        ui.stemOn[k] = !ui.stemOn[k]
+        applyStems(i)
+    }
+
+    /** 0 = tudo, 1 = só a voz (acapela), 2 = sem a voz (instrumental) */
+    fun stemPreset(i: Int, mode: Int) {
+        val ui = decks[i]
+        for (k in 0 until 4) ui.stemOn[k] = when (mode) {
+            1 -> k == 0
+            2 -> k != 0
+            else -> true
+        }
+        applyStems(i)
+    }
+
     fun visibleSongs(): List<Song> {
         val q = search.trim().lowercase()
         val base = if (q.isEmpty()) songs else songs.filter {
@@ -188,12 +299,17 @@ class DjViewModel(app: Application) : AndroidViewModel(app) {
         ui.loading = 0f
         viewModelScope.launch {
             try {
+                ui.stemJob?.cancel()
+                ui.stemJob = null
+                ui.stemState = 0
                 Engine.decks[i].loadTrack(null)
                 var last = 0f
                 val t = withContext(Dispatchers.IO) {
                     lib.prepare(song) { p -> if (p - last > 0.02f || p >= 1f) { last = p; ui.loading = p } }
                 }
                 val d = Engine.decks[i]
+                for (k in 0 until 4) { ui.stemOn[k] = true; d.stemGain[k] = 1f }
+                ui.stemState = if (t.stems != null) 2 else 0
                 d.loadTrack(t)
                 ui.song = song
                 ui.bpm = t.analysis.bpm
@@ -206,7 +322,8 @@ class DjViewModel(app: Application) : AndroidViewModel(app) {
                 d.seekTo = ui.mainCue
                 d.tempo = 1.0 + ui.pitch * pitchRange
             } catch (e: Exception) {
-                message = "Não consegui abrir essa música"
+                message = if (song.streamId != null) "Não consegui baixar essa música do Audius"
+                else "Não consegui abrir essa música"
             } finally {
                 ui.loading = -1f
             }
