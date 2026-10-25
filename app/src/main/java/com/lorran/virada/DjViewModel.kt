@@ -67,6 +67,7 @@ enum class Sort { TITLE, ARTIST, BPM }
 
 class DjViewModel(app: Application) : AndroidViewModel(app) {
     private val ctx: Context get() = getApplication()
+    val ctxPublic: Context get() = getApplication()
     val lib = Library(app)
     private val recs = Recordings(app)
     private val prefs = app.getSharedPreferences("settings", Context.MODE_PRIVATE)
@@ -103,6 +104,43 @@ class DjViewModel(app: Application) : AndroidViewModel(app) {
     var message by mutableStateOf<String?>(null)
 
     private var recTarget: RecordingTarget? = null
+
+    // ---------- fila e Auto DJ ----------
+    val queue = mutableStateListOf<Song>()
+    var showQueue by mutableStateOf(false)
+    val autoDj = AutoDj(this)
+
+    fun addToQueue(s: Song) {
+        queue.add(s)
+        message = "Na fila (${queue.size}): ${s.title}"
+    }
+    fun playNext(s: Song) {
+        queue.add(0, s)
+        message = "Toca em seguida: ${s.title}"
+    }
+    fun moveInQueue(from: Int, to: Int) {
+        if (from !in queue.indices || to !in queue.indices) return
+        val s = queue.removeAt(from)
+        queue.add(to, s)
+    }
+
+    // controles usados pelo Auto DJ (não contam como "o usuário assumiu")
+    fun moveCrossfaderAuto(v: Float) { crossfader = v; Engine.crossfader = v }
+    fun setEqAuto(i: Int, low: Float) = setEq(i, 2, low)
+    fun setFilterAuto(i: Int, v: Float) {
+        decks[i].filter = v
+        val f = (v - 0.5f) * 2f
+        Engine.decks[i].filter = if (abs(f) < 0.04f) 0f else f
+    }
+    fun setSyncAuto(i: Int, on: Boolean) {
+        decks[i].sync = on
+        if (on) { decks[1 - i].sync = false; applySync(i) }
+    }
+    fun playAuto(i: Int) {
+        Engine.decks[i].playing = true
+        decks[i].playing = true
+        PlaybackService.ensure(ctx)
+    }
 
     init {
         for (ui in decks) {
@@ -149,6 +187,7 @@ class DjViewModel(app: Application) : AndroidViewModel(app) {
             ui.tempo = d.tempo
         }
         masterLevel = Engine.masterLevel
+        autoDj.tick()
         Engine.recorder?.let { recSeconds = it.frames / SR }
     }
 
@@ -299,6 +338,7 @@ class DjViewModel(app: Application) : AndroidViewModel(app) {
                 for (k in 0 until 4) { ui.stemOn[k] = true; d.stemGain[k] = 1f }
                 ui.stemState = if (t.stems != null) 2 else 0
                 d.loadTrack(t)
+                autoDj.onLoaded(i)
                 ui.song = song
                 ui.bpm = t.analysis.bpm
                 ui.durSec = t.frames.toDouble() / SR
@@ -442,11 +482,13 @@ class DjViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
     fun setFilter(i: Int, v: Float) {
-        decks[i].filter = v
-        val f = (v - 0.5f) * 2f
-        Engine.decks[i].filter = if (abs(f) < 0.04f) 0f else f
+        autoDj.userTookOver()
+        setFilterAuto(i, v)
     }
-    fun moveCrossfader(v: Float) { crossfader = v; Engine.crossfader = v }
+    fun moveCrossfader(v: Float) {
+        autoDj.userTookOver()
+        crossfader = v; Engine.crossfader = v
+    }
     fun chooseCueDeck(i: Int) {
         cueDeck = i
         if (!splitCue) splitCue = true

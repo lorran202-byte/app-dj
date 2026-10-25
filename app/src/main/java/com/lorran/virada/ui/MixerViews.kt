@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.FiberManualRecord
 import androidx.compose.material.icons.filled.Headphones
@@ -51,6 +52,32 @@ fun TopBar(vm: DjViewModel, tick: State<Long>) {
         Spacer(Modifier.width(16.dp))
         LevelMeter({ Engine.masterLevel }, tick, Modifier.width(120.dp).height(8.dp), vertical = false)
         Spacer(Modifier.weight(1f))
+        val ad = vm.autoDj
+        Row(
+            Modifier
+                .background(if (ad.enabled) C.Accent else C.Surface2, RoundedCornerShape(16.dp))
+                .clickable { ad.toggle() }
+                .padding(horizontal = 10.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                when {
+                    !ad.enabled -> "AUTO DJ"
+                    ad.progress >= 0f -> "MIXANDO ${(ad.progress * 100).toInt()}%"
+                    else -> "AUTO DJ ON"
+                },
+                color = if (ad.enabled) C.OnColor else C.TextDim, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+            )
+        }
+        IconButton(onClick = { vm.showQueue = true }) {
+            Box {
+                Icon(Icons.AutoMirrored.Filled.QueueMusic, "Fila", tint = if (vm.queue.isEmpty()) C.TextDim else C.Accent)
+                if (vm.queue.isNotEmpty()) Text(
+                    "${vm.queue.size}", color = C.OnColor, fontSize = 8.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.align(Alignment.TopEnd).background(C.Accent, RoundedCornerShape(50)).padding(horizontal = 3.dp),
+                )
+            }
+        }
         IconButton(onClick = { vm.showPads = !vm.showPads }) {
             Icon(Icons.Filled.Apps, "Pads", tint = if (vm.showPads) C.Accent else C.TextDim)
         }

@@ -33,6 +33,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
@@ -107,6 +112,11 @@ fun LibraryDialog(vm: DjViewModel, onRequestPermission: () -> Unit) {
                     colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = color, cursorColor = color),
                 )
                 Spacer(Modifier.width(8.dp))
+                TextButton(onClick = { vm.showQueue = true }) {
+                    Icon(Icons.AutoMirrored.Filled.QueueMusic, null, tint = C.Accent)
+                    Spacer(Modifier.width(4.dp))
+                    Text("Fila: ${vm.queue.size}", color = C.Accent)
+                }
                 TextButton(onClick = { vm.showFolders = true }) {
                     Icon(Icons.Filled.Folder, null, tint = if (vm.folders.isEmpty()) C.TextDim else C.Accent)
                     Spacer(Modifier.width(4.dp))
@@ -140,7 +150,10 @@ fun LibraryDialog(vm: DjViewModel, onRequestPermission: () -> Unit) {
 }
 
 @Composable
-private fun SongRow(title: String, artist: String, bpm: Double, durMs: Long, color: Color, onClick: () -> Unit) {
+private fun SongRow(
+    title: String, artist: String, bpm: Double, durMs: Long, color: Color,
+    onQueue: (() -> Unit)? = null, onClick: () -> Unit,
+) {
     Row(
         Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 8.dp, horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -152,6 +165,12 @@ private fun SongRow(title: String, artist: String, bpm: Double, durMs: Long, col
         Text(if (bpm > 0) "%.0f BPM".format(bpm) else "", color = color, fontSize = 12.sp, fontFamily = Mono)
         Spacer(Modifier.width(16.dp))
         Text(fmtTime(durMs / 1000.0), color = C.TextDim, fontSize = 12.sp, fontFamily = Mono)
+        if (onQueue != null) {
+            Spacer(Modifier.width(4.dp))
+            IconButton(onClick = onQueue) {
+                Icon(Icons.AutoMirrored.Filled.PlaylistAdd, "Adicionar à fila", tint = C.Accent)
+            }
+        }
     }
 }
 
@@ -181,7 +200,9 @@ private fun LocalList(vm: DjViewModel, target: Int, color: Color, onRequestPermi
                 )
             } else LazyColumn(Modifier.fillMaxSize()) {
                 items(list, key = { it.key }) { s ->
-                    SongRow(s.title, s.artist, vm.lib.bpmOf(s.key), s.durationMs, color) { vm.requestLoad(target, s) }
+                    SongRow(s.title, s.artist, vm.lib.bpmOf(s.key), s.durationMs, color, onQueue = { vm.addToQueue(s) }) {
+                        vm.requestLoad(target, s)
+                    }
                 }
             }
         }
@@ -385,6 +406,88 @@ fun FoldersDialog(vm: DjViewModel, onRequestPermission: () -> Unit) {
                                 }
                                 Text("$count", color = C.TextDim, fontSize = 12.sp, fontFamily = Mono)
                                 Spacer(Modifier.width(8.dp))
+                            }
+                        }
+                    }
+                }
+            }
+        },
+    )
+}
+
+@Composable
+fun QueueDialog(vm: DjViewModel) {
+    if (!vm.showQueue) return
+    val ad = vm.autoDj
+    AlertDialog(
+        onDismissRequest = { vm.showQueue = false },
+        confirmButton = { TextButton(onClick = { vm.showQueue = false }) { Text("Fechar") } },
+        dismissButton = {
+            Row {
+                if (vm.queue.isNotEmpty()) TextButton(onClick = { vm.queue.clear() }) { Text("Limpar fila") }
+                TextButton(onClick = { vm.showQueue = false; vm.libraryFor = 0 }) { Text("Adicionar músicas") }
+            }
+        },
+        title = { Text("Fila e Auto DJ") },
+        containerColor = C.Surface,
+        text = {
+            Column(Modifier.widthIn(max = 600.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Auto DJ", color = C.Text, fontSize = 14.sp)
+                        Text(
+                            "Mixa a fila sozinho: acerta o BPM, troca o grave e passa o crossfader. " +
+                                "Mexeu no crossfader ou no filtro, você assume.",
+                            color = C.TextDim, fontSize = 11.sp,
+                        )
+                    }
+                    Switch(ad.enabled, { ad.toggle() }, colors = SwitchDefaults.colors(checkedTrackColor = C.Accent, checkedThumbColor = C.OnColor))
+                }
+                Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Transição:", color = C.TextDim, fontSize = 12.sp)
+                    listOf(8 to "curta", 16 to "média", 32 to "longa").forEach { (b, t) ->
+                        Choice("$t ($b batidas)", ad.beats == b) { ad.beats = b }
+                    }
+                }
+                Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Continuar sozinho quando a fila acabar", color = C.Text, fontSize = 13.sp)
+                        Text("Escolhe músicas da biblioteca com BPM parecido", color = C.TextDim, fontSize = 11.sp)
+                    }
+                    Switch(ad.continueAlone, { ad.continueAlone = it }, colors = SwitchDefaults.colors(checkedTrackColor = C.Accent, checkedThumbColor = C.OnColor))
+                }
+                Spacer(Modifier.height(8.dp))
+                for (i in 0..1) {
+                    val s = vm.decks[i].song ?: continue
+                    Text(
+                        (if (vm.decks[i].playing) "▶ Tocando no deck " else "Pronta no deck ") + (if (i == 0) "A" else "B") + ": " + s.title,
+                        color = C.deck(i), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Spacer(Modifier.height(6.dp))
+                if (vm.queue.isEmpty()) {
+                    Text(
+                        "A fila está vazia. Na biblioteca, toque no ícone + ao lado de uma música para adicioná-la.",
+                        color = C.TextDim, fontSize = 12.sp,
+                    )
+                } else LazyColumn(Modifier.heightIn(max = 220.dp)) {
+                    items(vm.queue.size) { idx ->
+                        val s = vm.queue[idx]
+                        Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text("${idx + 1}", color = C.TextDim, fontSize = 12.sp, fontFamily = Mono, modifier = Modifier.width(24.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(s.title, color = C.Text, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                val b = vm.lib.bpmOf(s.key)
+                                Text(s.artist + if (b > 0) " · %.0f BPM".format(b) else "", color = C.TextDim, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            IconButton(onClick = { vm.moveInQueue(idx, idx - 1) }, enabled = idx > 0) {
+                                Icon(Icons.Filled.KeyboardArrowUp, "Subir", tint = if (idx > 0) C.Text else C.Line)
+                            }
+                            IconButton(onClick = { vm.moveInQueue(idx, idx + 1) }, enabled = idx < vm.queue.size - 1) {
+                                Icon(Icons.Filled.KeyboardArrowDown, "Descer", tint = if (idx < vm.queue.size - 1) C.Text else C.Line)
+                            }
+                            IconButton(onClick = { vm.queue.removeAt(idx) }) {
+                                Icon(Icons.Filled.Close, "Tirar da fila", tint = C.TextDim)
                             }
                         }
                     }
