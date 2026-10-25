@@ -29,7 +29,7 @@ jobs:
       - name: Mostrar erros
         if: failure()
         run: |
-          grep -E "^e: |error:|What went wrong|> " build.log | head -40 | while IFS= read -r l; do echo "::error::$l"; done
+          { grep -E "^e: |^ERROR|AAPT: error" build.log; grep -A10 "What went wrong" build.log; } | head -60 | while IFS= read -r l; do echo "::error::$l"; done
 
       - name: Conferir APK
         run: |
