@@ -53,10 +53,15 @@ class StudioTest {
     }
 
     @Test fun keyOfMajorTriadAndShift() {
-        // acorde de Sol maior (Sol, Si, Ré) + baixo em Sol
-        val notes = doubleArrayOf(196.0, 246.94, 293.66, 98.0)
+        // progressão I–IV–V–I em Sol maior: Sol, Dó, Ré, Sol (5 s cada, com baixo)
+        val chords = arrayOf(
+            doubleArrayOf(98.0, 196.0, 246.94, 293.66),
+            doubleArrayOf(130.81, 261.63, 329.63, 392.0),
+            doubleArrayOf(146.83, 293.66, 369.99, 440.0),
+            doubleArrayOf(98.0, 196.0, 246.94, 293.66),
+        )
         val frames = SR * 20
-        val src = PcmSrc(buf(frames) { i -> notes.sumOf { sin(2 * PI * it * i / SR) } * 0.2 }, frames)
+        val src = PcmSrc(buf(frames) { i -> chords[(i / (SR * 5)).coerceAtMost(3)].sumOf { sin(2 * PI * it * i / SR) } * 0.2 }, frames)
         val k = Music.key(src, frames)
         assertEquals(7, k.majorRoot)
         // Lá menor (relativa de Dó) → Sol maior: sobe 7 = desce 5
