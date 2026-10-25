@@ -96,7 +96,7 @@ fun Mixer(vm: DjViewModel, tick: State<Long>, modifier: Modifier = Modifier) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("A", color = C.DeckA, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             HFader(
-                (vm.crossfader + 1f) / 2f, { vm.setCrossfader(it * 2f - 1f) },
+                (vm.crossfader + 1f) / 2f, { vm.moveCrossfader(it * 2f - 1f) },
                 Modifier.weight(1f).height(34.dp),
             )
             Text("B", color = C.DeckB, fontSize = 11.sp, fontWeight = FontWeight.Bold)
@@ -125,7 +125,7 @@ private fun ChannelStrip(i: Int, vm: DjViewModel, tick: State<Long>, knob: andro
                         if (vm.splitCue && vm.cueDeck == i) color else Color.Transparent,
                         RoundedCornerShape(4.dp),
                     )
-                    .clickable { vm.setCueDeck(i) },
+                    .clickable { vm.chooseCueDeck(i) },
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(

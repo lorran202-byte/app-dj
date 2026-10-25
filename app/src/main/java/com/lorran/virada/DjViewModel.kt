@@ -183,13 +183,13 @@ class DjViewModel(app: Application) : AndroidViewModel(app) {
         ui.loading = 0f
         viewModelScope.launch {
             try {
-                Engine.decks[i].setTrack(null)
+                Engine.decks[i].loadTrack(null)
                 var last = 0f
                 val t = withContext(Dispatchers.IO) {
                     lib.prepare(song) { p -> if (p - last > 0.02f || p >= 1f) { last = p; ui.loading = p } }
                 }
                 val d = Engine.decks[i]
-                d.setTrack(t)
+                d.loadTrack(t)
                 ui.song = song
                 ui.bpm = t.analysis.bpm
                 ui.durSec = t.frames.toDouble() / SR
@@ -330,8 +330,8 @@ class DjViewModel(app: Application) : AndroidViewModel(app) {
         val f = (v - 0.5f) * 2f
         Engine.decks[i].filter = if (abs(f) < 0.04f) 0f else f
     }
-    fun setCrossfader(v: Float) { crossfader = v; Engine.crossfader = v }
-    fun setCueDeck(i: Int) {
+    fun moveCrossfader(v: Float) { crossfader = v; Engine.crossfader = v }
+    fun chooseCueDeck(i: Int) {
         cueDeck = i
         if (!splitCue) splitCue = true
         applySettings()

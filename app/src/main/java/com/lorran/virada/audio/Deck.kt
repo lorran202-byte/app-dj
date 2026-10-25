@@ -81,7 +81,7 @@ class Deck(val index: Int) {
     val isActive: Boolean
         get() = playing || scratching || abs(curRate) > 1e-5 || echo.active || reverb.active
 
-    fun setTrack(t: LoadedTrack?) {
+    fun loadTrack(t: LoadedTrack?) {
         playing = false
         loopOn = false
         track = t
