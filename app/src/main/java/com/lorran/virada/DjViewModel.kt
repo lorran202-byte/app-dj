@@ -24,7 +24,6 @@ import com.lorran.virada.data.Recordings
 import com.lorran.virada.data.Song
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import com.lorran.virada.data.Audius
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -99,15 +98,6 @@ class DjViewModel(app: Application) : AndroidViewModel(app) {
     var recList by mutableStateOf(recs.list())
     var message by mutableStateOf<String?>(null)
 
-    // ---------- streaming (Audius) ----------
-    var online by mutableStateOf(false)
-    var onlineGenre by mutableIntStateOf(1)
-    var onlineQuery by mutableStateOf("")
-    var onlineResults by mutableStateOf<List<Song>>(emptyList())
-    var onlineLoading by mutableStateOf(false)
-    var onlineError by mutableStateOf<String?>(null)
-    private var onlineJob: Job? = null
-
     private var recTarget: RecordingTarget? = null
 
     init {
@@ -172,45 +162,6 @@ class DjViewModel(app: Application) : AndroidViewModel(app) {
             songs = list
             songsLoaded = true
         }
-    }
-
-    fun openOnline() {
-        online = true
-        if (onlineResults.isEmpty() && !onlineLoading) fetchOnline()
-    }
-
-    fun fetchOnline(query: String? = null) {
-        if (query != null) onlineQuery = query
-        onlineJob?.cancel()
-        onlineLoading = true
-        onlineError = null
-        val q = onlineQuery.trim()
-        val genre = Audius.genres[onlineGenre].second
-        onlineJob = viewModelScope.launch {
-            try {
-                onlineResults = withContext(Dispatchers.IO) {
-                    if (q.isNotEmpty()) Audius.search(q) else Audius.trending(genre)
-                }
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                onlineError = "Sem internet ou o Audius não respondeu. Tente de novo."
-            } finally {
-                onlineLoading = false
-            }
-        }
-    }
-
-    fun pickGenre(g: Int) {
-        onlineGenre = g
-        onlineQuery = ""
-        fetchOnline()
-    }
-
-    fun onlineSorted(): List<Song> = when (sort) {
-        Sort.TITLE -> onlineResults
-        Sort.ARTIST -> onlineResults.sortedBy { it.artist.lowercase() }
-        Sort.BPM -> onlineResults.sortedBy { if (it.hintBpm <= 0) 999.0 else it.hintBpm }
     }
 
     // ---------- separar voz e instrumentos ----------
@@ -322,8 +273,7 @@ class DjViewModel(app: Application) : AndroidViewModel(app) {
                 d.seekTo = ui.mainCue
                 d.tempo = 1.0 + ui.pitch * pitchRange
             } catch (e: Exception) {
-                message = if (song.streamId != null) "Não consegui baixar essa música do Audius"
-                else "Não consegui abrir essa música"
+                message = "Não consegui abrir essa música"
             } finally {
                 ui.loading = -1f
             }

@@ -24,10 +24,6 @@ data class Song(
     val title: String,
     val artist: String,
     val durationMs: Long,
-    /** Id no Audius quando a música vem do streaming. */
-    val streamId: String? = null,
-    val hintBpm: Double = 0.0,
-    val artwork: String? = null,
 )
 
 class Library(private val ctx: Context) {
@@ -144,16 +140,7 @@ class Library(private val ctx: Context) {
         if (pcm.exists() && ana.exists()) analysis = Analysis.load(ana)
         if (analysis == null || !pcm.exists()) {
             prune()
-            val sid = song.streamId
-            if (sid != null) {
-                val dl = File(cacheDir, "${song.key}.dl")
-                try {
-                    Audius.download(sid, dl) { onProgress(it * 0.5f) }
-                    Decoder.decode(ctx, Uri.fromFile(dl), pcm) { onProgress(0.5f + it * 0.5f) }
-                } finally {
-                    dl.delete()
-                }
-            } else Decoder.decode(ctx, song.uri, pcm, onProgress)
+            Decoder.decode(ctx, song.uri, pcm, onProgress)
             val buf = Decoder.map(pcm)
             analysis = Analyzer.analyze(buf, buf.limit() / 2)
             analysis.save(ana)
@@ -184,7 +171,7 @@ class Library(private val ctx: Context) {
             StemId.SAVED.indices.forEach { stemFile(key, it).delete() }
         }
         cacheDir.listFiles { f ->
-            f.name.endsWith(".src") || f.name.endsWith(".tmp") || f.name.endsWith(".part") || f.name.endsWith(".dl")
+            f.name.endsWith(".src") || f.name.endsWith(".tmp")
         }?.forEach { it.delete() }
     }
 }

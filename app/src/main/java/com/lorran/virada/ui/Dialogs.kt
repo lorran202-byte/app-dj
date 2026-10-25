@@ -6,15 +6,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.input.ImeAction
-import com.lorran.virada.data.Audius
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -98,36 +94,19 @@ fun LibraryDialog(vm: DjViewModel, onRequestPermission: () -> Unit) {
                     )
                 }
                 Spacer(Modifier.width(8.dp))
-                SourceTab("No celular", !vm.online) { vm.online = false }
-                SourceTab("Online", vm.online) { vm.openOnline() }
+                OutlinedTextField(
+                    value = vm.search, onValueChange = { vm.search = it },
+                    placeholder = { Text("Buscar música ou artista", fontSize = 13.sp) },
+                    leadingIcon = { Icon(Icons.Filled.Search, null) },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = color, cursorColor = color),
+                )
                 Spacer(Modifier.width(8.dp))
-                if (vm.online) {
-                    var typed by remember { mutableStateOf(vm.onlineQuery) }
-                    OutlinedTextField(
-                        value = typed, onValueChange = { typed = it },
-                        placeholder = { Text("Buscar no Audius e tocar Enter", fontSize = 13.sp) },
-                        leadingIcon = { Icon(Icons.Filled.Search, null) },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                        keyboardActions = KeyboardActions(onSearch = { vm.fetchOnline(typed) }),
-                        modifier = Modifier.weight(1f).heightIn(min = 48.dp),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = color, cursorColor = color),
-                    )
-                } else {
-                    OutlinedTextField(
-                        value = vm.search, onValueChange = { vm.search = it },
-                        placeholder = { Text("Buscar música ou artista", fontSize = 13.sp) },
-                        leadingIcon = { Icon(Icons.Filled.Search, null) },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f).heightIn(min = 48.dp),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = color, cursorColor = color),
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    TextButton(onClick = { picker.launch(arrayOf("audio/*")) }) {
-                        Icon(Icons.Filled.FolderOpen, null, tint = C.Accent)
-                        Spacer(Modifier.width(4.dp))
-                        Text("Abrir arquivo", color = C.Accent)
-                    }
+                TextButton(onClick = { picker.launch(arrayOf("audio/*")) }) {
+                    Icon(Icons.Filled.FolderOpen, null, tint = C.Accent)
+                    Spacer(Modifier.width(4.dp))
+                    Text("Abrir arquivo", color = C.Accent)
                 }
             }
             Row(
@@ -135,42 +114,17 @@ fun LibraryDialog(vm: DjViewModel, onRequestPermission: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text("Ordenar:", color = C.TextDim, fontSize = 12.sp)
-                listOf(Sort.TITLE to (if (vm.online) "Relevância" else "Título"), Sort.ARTIST to "Artista", Sort.BPM to "BPM").forEach { (s, t) ->
+                listOf(Sort.TITLE to "Título", Sort.ARTIST to "Artista", Sort.BPM to "BPM").forEach { (s, t) ->
                     FilterChip(
                         selected = vm.sort == s, onClick = { vm.sort = s }, label = { Text(t) },
                         modifier = Modifier.padding(start = 6.dp),
                         colors = FilterChipDefaults.filterChipColors(selectedContainerColor = C.Surface2, selectedLabelColor = C.Accent),
                     )
                 }
-                if (vm.online) {
-                    Spacer(Modifier.width(12.dp))
-                    Text("Em alta:", color = C.TextDim, fontSize = 12.sp)
-                    Audius.genres.forEachIndexed { g, (name, _) ->
-                        FilterChip(
-                            selected = vm.onlineQuery.isBlank() && vm.onlineGenre == g,
-                            onClick = { vm.pickGenre(g) }, label = { Text(name) },
-                            modifier = Modifier.padding(start = 6.dp),
-                            colors = FilterChipDefaults.filterChipColors(selectedContainerColor = color, selectedLabelColor = C.OnColor),
-                        )
-                    }
-                }
             }
-            if (vm.online) OnlineList(vm, target, color) else LocalList(vm, target, color, onRequestPermission)
+            LocalList(vm, target, color, onRequestPermission)
         }
     }
-}
-
-@Composable
-private fun SourceTab(text: String, selected: Boolean, onClick: () -> Unit) {
-    Text(
-        text,
-        color = if (selected) C.Accent else C.TextDim,
-        fontSize = 13.sp, fontWeight = FontWeight.Bold,
-        modifier = Modifier
-            .background(if (selected) C.Surface2 else C.Bg, RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-    )
 }
 
 @Composable
@@ -200,7 +154,7 @@ private fun LocalList(vm: DjViewModel, target: Int, color: Color, onRequestPermi
             Spacer(Modifier.height(12.dp))
             Button(onClick = onRequestPermission) { Text("Permitir acesso às músicas") }
             Spacer(Modifier.height(8.dp))
-            Text("Ou use \"Abrir arquivo\" lá em cima, ou a aba Online.", color = C.TextDim, fontSize = 12.sp)
+            Text("Ou use \"Abrir arquivo\" lá em cima.", color = C.TextDim, fontSize = 12.sp)
         }
         !vm.songsLoaded -> BigMessage("Procurando músicas…")
         else -> {
@@ -216,34 +170,6 @@ private fun LocalList(vm: DjViewModel, target: Int, color: Color, onRequestPermi
     }
 }
 
-@Composable
-private fun OnlineList(vm: DjViewModel, target: Int, color: Color) {
-    val err = vm.onlineError
-    when {
-        vm.onlineLoading -> BigMessage("Buscando no Audius…")
-        err != null -> Column(
-            Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Text(err, color = C.TextDim)
-            Spacer(Modifier.height(12.dp))
-            Button(onClick = { vm.fetchOnline() }) { Text("Tentar de novo") }
-        }
-        vm.onlineResults.isEmpty() -> BigMessage("Nada encontrado")
-        else -> Column(Modifier.fillMaxSize()) {
-            LazyColumn(Modifier.weight(1f)) {
-                items(vm.onlineSorted(), key = { it.key }) { s ->
-                    val bpm = vm.lib.bpmOf(s.key).takeIf { it > 0 } ?: s.hintBpm
-                    SongRow(s.title, s.artist, bpm, s.durationMs, color) { vm.requestLoad(target, s) }
-                }
-            }
-            Text(
-                "Músicas do Audius, publicadas pelos próprios artistas. Precisa de internet para baixar; depois fica no cache.",
-                color = C.TextDim, fontSize = 10.sp, modifier = Modifier.padding(4.dp),
-            )
-        }
-    }
-}
 @Composable
 fun SettingsDialog(vm: DjViewModel) {
     if (!vm.showSettings) return

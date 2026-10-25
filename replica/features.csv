@@ -19,7 +19,7 @@ F17,Biblioteca,Ordenar por titulo artista ou BPM,could,feito
 F18,DJ,Pre-escuta dividida (fone: master num lado e cue no outro),could,feito
 F19,DJ,Keylock (mudar tempo sem mudar o tom),could,feito
 F20,DJ,Separacao de stems (voz/bateria/baixo/melodia) no celular,could,feito
-F21,Biblioteca,Streaming online (Audius; Beatport/SoundCloud/Spotify exigem parceria),could,parcial
+F21,Biblioteca,Streaming online (so grandes servicos com parceria; Audius removido a pedido),could,fora
 M01,Geral,Tudo liberado sem assinatura e sem anuncios,must,feito
 M02,Geral,Abre rapido sem travar na tela de carregamento,must,feito
 M03,Geral,Tela sempre acesa durante a festa e audio continua em segundo plano,should,feito
