@@ -9,6 +9,7 @@ import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.sin
+import kotlin.math.sqrt
 
 class AudioEngineTest {
 
@@ -226,5 +227,90 @@ class AudioEngineTest {
         assertEquals(100 * Engine.BLOCK * 4, dataSize)
         assertEquals(44 + dataSize, bytes.size)
         f.delete()
+    }
+
+    // ---------- keylock ----------
+    private fun sineTrack(freq: Double, seconds: Double): ShortBuffer {
+        val frames = (seconds * SR).toInt()
+        val arr = ShortArray(frames * 2)
+        for (k in 0 until frames) {
+            val v = (sin(2 * PI * freq * k / SR) * 12000).toInt().toShort()
+            arr[k * 2] = v; arr[k * 2 + 1] = v
+        }
+        return ShortBuffer.wrap(arr)
+    }
+
+    /** Toca [blocks] blocos e devolve (frequência medida, rms mínimo por bloco, rms médio). */
+    private fun measure(d: Deck, blocks: Int): Triple<Double, Float, Float> {
+        val out = FloatArray(Engine.BLOCK * 2)
+        var crossings = 0
+        var prev = 0f
+        var minRms = Float.MAX_VALUE
+        var sumRms = 0f
+        repeat(blocks) {
+            d.render(out, Engine.BLOCK)
+            val mono = FloatArray(Engine.BLOCK) { out[it * 2] }
+            val r = rms(mono)
+            if (r < minRms) minRms = r
+            sumRms += r
+            for (v in mono) { if (prev <= 0f && v > 0f) crossings++; prev = v }
+        }
+        val sec = blocks * Engine.BLOCK.toDouble() / SR
+        return Triple(crossings / sec, minRms, sumRms / blocks)
+    }
+
+    private fun startDeck(buf: ShortBuffer, tempo: Double, keyLock: Boolean): Deck {
+        val d = deckWith(buf)
+        d.autoGain = false
+        d.keyLock = keyLock
+        d.tempo = tempo
+        run(d, 1)
+        d.playing = true
+        run(d, 200) // estabiliza a velocidade e o keylock
+        return d
+    }
+
+    @Test fun keyLockKeepsPitchFaster() {
+        val d = startDeck(sineTrack(440.0, 30.0), 1.08, true)
+        val p0 = d.position
+        val (f, minRms, avg) = measure(d, 1000)
+        assertEquals("tom mudou com keylock", 440.0, f, 4.0)
+        assertTrue("volume oscilando: min $minRms média $avg", minRms > avg * 0.8f)
+        assertEquals("velocidade errada", 1000 * Engine.BLOCK * 1.08, d.position - p0, 400.0)
+    }
+
+    @Test fun keyLockKeepsPitchSlower() {
+        val d = startDeck(sineTrack(440.0, 30.0), 0.90, true)
+        val p0 = d.position
+        val (f, minRms, avg) = measure(d, 1000)
+        assertEquals("tom mudou com keylock", 440.0, f, 4.0)
+        assertTrue("volume oscilando: min $minRms média $avg", minRms > avg * 0.8f)
+        assertEquals("velocidade errada", 1000 * Engine.BLOCK * 0.90, d.position - p0, 400.0)
+    }
+
+    @Test fun withoutKeyLockPitchFollowsTempo() {
+        val d = startDeck(sineTrack(440.0, 30.0), 1.08, false)
+        val (f, _, _) = measure(d, 1000)
+        assertEquals(440.0 * 1.08, f, 4.0)
+    }
+
+    @Test fun keyLockAtZeroIsTransparent() {
+        val d = startDeck(sineTrack(440.0, 30.0), 1.0, true)
+        val (f, minRms, avg) = measure(d, 500)
+        assertEquals(440.0, f, 2.0)
+        assertTrue(minRms > avg * 0.95f)
+        assertEquals("perdeu volume", 12000 / 32768.0 / sqrt(2.0), avg.toDouble(), 0.02)
+    }
+
+    @Test fun keyLockOnRealBeatKeepsTiming() {
+        // batida de 120 BPM tocada a 126 BPM com keylock: o deck tem que andar 5% mais rápido
+        val d = startDeck(beatTrack(120.0, 40.0, 0.0), 1.05, true)
+        val p0 = d.position
+        val out = FloatArray(Engine.BLOCK * 2)
+        repeat(3000) {
+            d.render(out, Engine.BLOCK)
+            for (v in out) assertTrue(!v.isNaN() && abs(v) < 4f)
+        }
+        assertEquals(3000 * Engine.BLOCK * 1.05, d.position - p0, 500.0)
     }
 }

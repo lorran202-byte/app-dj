@@ -32,6 +32,8 @@ class Deck(val index: Int) {
     @Volatile var bend = 0.0
     @Volatile var trim = 1f
     @Volatile var autoGain = true
+    /** Keylock: mudar a velocidade sem mudar o tom. */
+    @Volatile var keyLock = false
 
     @Volatile var eqLow = 0.5f
     @Volatile var eqMid = 0.5f
@@ -61,6 +63,8 @@ class Deck(val index: Int) {
     private val flanger = Flanger()
     private val reverb = Reverb()
     private val phaser = Phaser()
+    private val kl = KeyLock()
+    private var klMix = 0f
 
     private var gLow = 1f; private var gMid = 1f; private var gHigh = 1f
     private var gate = 1f
@@ -82,6 +86,8 @@ class Deck(val index: Int) {
 
     fun loadTrack(t: LoadedTrack?) {
         playing = false
+        kl.reset()
+        klMix = 0f
         loopOn = false
         track = t
         seekTo = 0.0
@@ -172,13 +178,27 @@ class Deck(val index: Int) {
                 curRate += (target - curRate) * 0.01
             }
 
-            val i0 = p.toInt()
-            val fr = (p - i0).toFloat()
-            val a = i0 * 2
-            val l0 = buf.get(a).toFloat(); val r0 = buf.get(a + 1).toFloat()
-            val l1 = buf.get(a + 2).toFloat(); val r1 = buf.get(a + 3).toFloat()
-            var l = (l0 + (l1 - l0) * fr) * (gain / 32768f)
-            var r = (r0 + (r1 - r0) * fr) * (gain / 32768f)
+            // keylock só vale tocando para frente; scratch, reverso e freio mudam o tom de propósito
+            val wantKl = keyLock && !scratching && !reverseOn && !brakeNow && curRate > 0.3
+            klMix += ((if (wantKl) 1f else 0f) - klMix) * 0.004f
+            if (!wantKl && klMix < 0.001f) { if (klMix > 0f) kl.reset(); klMix = 0f }
+
+            var l = 0f
+            var r = 0f
+            if (klMix < 0.999f) {
+                val i0 = p.toInt()
+                val fr = (p - i0).toFloat()
+                val a = i0 * 2
+                val l0 = buf.get(a).toFloat(); val r0 = buf.get(a + 1).toFloat()
+                val l1 = buf.get(a + 2).toFloat(); val r1 = buf.get(a + 3).toFloat()
+                l = (l0 + (l1 - l0) * fr) * (gain / 32768f)
+                r = (r0 + (r1 - r0) * fr) * (gain / 32768f)
+            }
+            if (klMix > 0f) {
+                kl.next(buf, t.frames, p, gain)
+                l = l * (1f - klMix) + kl.outL * klMix
+                r = r * (1f - klMix) + kl.outR * klMix
+            }
 
             val prev = p
             p += curRate

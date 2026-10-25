@@ -197,7 +197,8 @@ fun SettingsDialog(vm: DjViewModel) {
                 Spacer(Modifier.height(8.dp))
                 Text(
                     "Dicas: toque duas vezes num botão giratório ou fader para voltar ao meio. " +
-                        "No prato, o centro faz scratch e a borda acelera/freia de leve.",
+                        "No prato, o centro faz scratch e a borda acelera/freia de leve. " +
+                        "KEY aceso (embaixo do pitch) = mudar a velocidade sem mudar o tom.",
                     color = C.TextDim, fontSize = 12.sp,
                 )
             }

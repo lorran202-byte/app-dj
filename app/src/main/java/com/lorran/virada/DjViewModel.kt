@@ -53,6 +53,7 @@ class DeckUi(val index: Int) {
     var tab by mutableIntStateOf(0)
     var level by mutableFloatStateOf(0f)
     var tempo by mutableDoubleStateOf(1.0)
+    var keyLock by mutableStateOf(false)
 }
 
 enum class Sort { TITLE, ARTIST, BPM }
@@ -94,6 +95,10 @@ class DjViewModel(app: Application) : AndroidViewModel(app) {
     private var recTarget: RecordingTarget? = null
 
     init {
+        for (ui in decks) {
+            ui.keyLock = prefs.getBoolean("keylock${ui.index}", true)
+            Engine.decks[ui.index].keyLock = ui.keyLock
+        }
         Engine.start()
         applySettings()
         viewModelScope.launch {
@@ -263,6 +268,13 @@ class DjViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun resetPitch(i: Int) = setPitch(i, 0f)
+
+    fun toggleKeyLock(i: Int) {
+        val ui = decks[i]
+        ui.keyLock = !ui.keyLock
+        Engine.decks[i].keyLock = ui.keyLock
+        prefs.edit().putBoolean("keylock$i", ui.keyLock).apply()
+    }
 
     private fun syncTempo(i: Int): Double? {
         val me = Engine.decks[i]

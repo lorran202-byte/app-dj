@@ -17,7 +17,7 @@ F15,DJ,Gravar a mixagem em arquivo,must,feito
 F16,Biblioteca,Lista de musicas do celular com busca,must,feito
 F17,Biblioteca,Ordenar por titulo artista ou BPM,could,feito
 F18,DJ,Pre-escuta dividida (fone: master num lado e cue no outro),could,feito
-F19,DJ,Keylock (mudar tempo sem mudar o tom),could,todo
+F19,DJ,Keylock (mudar tempo sem mudar o tom),could,feito
 F20,DJ,Separacao de stems,could,fora
 F21,Biblioteca,Streaming Beatport/SoundCloud,could,fora
 M01,Geral,Tudo liberado sem assinatura e sem anuncios,must,feito

@@ -120,6 +120,11 @@ fun DeckPanel(i: Int, vm: DjViewModel, tick: State<Long>, showStrip: Boolean, mo
                     )
                     Text("−", color = C.TextDim, fontSize = 10.sp)
                     Text("%+.1f%%".format((ui.tempo - 1.0) * 100), fontFamily = Mono, fontSize = 8.sp, color = C.TextDim, maxLines = 1)
+                    Spacer(Modifier.height(3.dp))
+                    PadButton(
+                        "KEY", C.Accent, Modifier.fillMaxWidth().height(24.dp), active = ui.keyLock,
+                        fontSize = 9.sp, onTap = { vm.toggleKeyLock(i) },
+                    )
                 }
             }
             val jog: @Composable RowScope.() -> Unit = {
