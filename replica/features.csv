@@ -1,25 +1,25 @@
 id,tela,funcao,prioridade,status
-F01,DJ,Dois decks com play/pause e cue,must,todo
-F02,DJ,Crossfader com curva ajustavel,must,todo
-F03,DJ,Volume por deck e volume master,must,todo
-F04,DJ,Deteccao automatica de BPM,must,todo
-F05,DJ,SYNC de tempo e fase entre decks,must,todo
-F06,DJ,Pitch/tempo +-8% e +-16%,must,todo
-F07,DJ,Onda da musica rolando com posicao,must,todo
-F08,DJ,Prato virtual com scratch e nudge,should,todo
-F09,DJ,EQ 3 bandas por deck (grave/medio/agudo),must,todo
-F10,FX,Filtro passa-baixa/passa-alta,must,todo
-F11,FX,Efeitos eco flanger reverb phaser roll e freio,should,todo
-F12,Cues,4 hot cues por deck salvos por musica,must,todo
-F13,Loops,Loop automatico 1/4 a 16 batidas e saida de loop,must,todo
-F14,Pads,8 pads de samples com sons proprios,should,todo
-F15,DJ,Gravar a mixagem em arquivo,must,todo
-F16,Biblioteca,Lista de musicas do celular com busca,must,todo
-F17,Biblioteca,Ordenar por titulo artista ou BPM,could,todo
-F18,DJ,Pre-escuta dividida (fone: master num lado e cue no outro),could,todo
+F01,DJ,Dois decks com play/pause e cue,must,feito
+F02,DJ,Crossfader com curva ajustavel,must,feito
+F03,DJ,Volume por deck e volume master,must,feito
+F04,DJ,Deteccao automatica de BPM,must,feito
+F05,DJ,SYNC de tempo e fase entre decks,must,feito
+F06,DJ,Pitch/tempo +-8% e +-16%,must,feito
+F07,DJ,Onda da musica rolando com posicao,must,feito
+F08,DJ,Prato virtual com scratch e nudge,should,feito
+F09,DJ,EQ 3 bandas por deck (grave/medio/agudo),must,feito
+F10,FX,Filtro passa-baixa/passa-alta,must,feito
+F11,FX,Efeitos eco flanger reverb phaser roll e freio,should,feito
+F12,Cues,4 hot cues por deck salvos por musica,must,feito
+F13,Loops,Loop automatico 1/4 a 16 batidas e saida de loop,must,feito
+F14,Pads,8 pads de samples com sons proprios,should,feito
+F15,DJ,Gravar a mixagem em arquivo,must,feito
+F16,Biblioteca,Lista de musicas do celular com busca,must,feito
+F17,Biblioteca,Ordenar por titulo artista ou BPM,could,feito
+F18,DJ,Pre-escuta dividida (fone: master num lado e cue no outro),could,feito
 F19,DJ,Keylock (mudar tempo sem mudar o tom),could,todo
 F20,DJ,Separacao de stems,could,fora
 F21,Biblioteca,Streaming Beatport/SoundCloud,could,fora
-M01,Geral,Tudo liberado sem assinatura e sem anuncios,must,todo
-M02,Geral,Abre rapido sem travar na tela de carregamento,must,todo
-M03,Geral,Tela sempre acesa durante a festa e audio continua em segundo plano,should,todo
+M01,Geral,Tudo liberado sem assinatura e sem anuncios,must,feito
+M02,Geral,Abre rapido sem travar na tela de carregamento,must,feito
+M03,Geral,Tela sempre acesa durante a festa e audio continua em segundo plano,should,feito
