@@ -12,3 +12,12 @@ Lint: 0 erros, 13 avisos (sem gravidade). APK: com.lorran.virada 1.0 (code 1), m
 
 Não testado em aparelho real (sem emulador aqui): toque no prato, encaixe da tela em celulares diferentes, latência do som.
 Bugs abertos: nenhum S1/S2 conhecido.
+
+## 1.1 — Keylock
+- 5 testes: tom mantido a 1,08x e 0,90x (440 Hz ± 4), volume estável, velocidade certa; sem keylock o tom acompanha.
+
+## 1.2 — Stems e Audius
+- Separação (Spleeter 4 faixas do Cantare, ONNX): com modelo falso, as faixas somam a música (erro < 0,001) e têm o tamanho certo.
+- Deck: mutar a voz zera só os 440 Hz (< 2%), bateria e melodia ficam (± 8%); acapela + keylock a 1,06x mantém tom e volume da voz.
+- APK 111 MB (modelos 79 MB + ONNX Runtime arm64/armv7). Publicado em partes de 45 MB no branch builds (limite de 100 MB do git).
+- Audius: busca e em alta conferidos pela API pública (sem chave). Download e separação não testados em aparelho real.
