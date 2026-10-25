@@ -109,6 +109,7 @@ class DjViewModel(app: Application) : AndroidViewModel(app) {
     val queue = mutableStateListOf<Song>()
     var showQueue by mutableStateOf(false)
     val autoDj = AutoDj(this)
+    val studio = StudioController(this, lib, recs)
 
     fun addToQueue(s: Song) {
         queue.add(s)

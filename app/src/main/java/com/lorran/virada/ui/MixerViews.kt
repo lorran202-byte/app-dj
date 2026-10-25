@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.FiberManualRecord
@@ -53,6 +54,21 @@ fun TopBar(vm: DjViewModel, tick: State<Long>) {
         LevelMeter({ Engine.masterLevel }, tick, Modifier.width(120.dp).height(8.dp), vertical = false)
         Spacer(Modifier.weight(1f))
         val ad = vm.autoDj
+        Row(
+            Modifier
+                .background(if (vm.studio.running) C.Accent else C.Surface2, RoundedCornerShape(16.dp))
+                .clickable { vm.studio.show = true }
+                .padding(horizontal = 10.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Filled.AutoAwesome, null, tint = if (vm.studio.running) C.OnColor else C.Accent, modifier = Modifier.size(14.dp))
+            Spacer(Modifier.width(4.dp))
+            Text(
+                if (vm.studio.running) "IA ${(vm.studio.progress * 100).toInt()}%" else "IA",
+                color = if (vm.studio.running) C.OnColor else C.Text, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+            )
+        }
+        Spacer(Modifier.width(6.dp))
         Row(
             Modifier
                 .background(if (ad.enabled) C.Accent else C.Surface2, RoundedCornerShape(16.dp))

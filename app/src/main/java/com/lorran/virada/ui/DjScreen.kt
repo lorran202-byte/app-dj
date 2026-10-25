@@ -54,6 +54,7 @@ fun DjScreen(vm: DjViewModel, onRequestPermission: () -> Unit) {
     SettingsDialog(vm)
     FoldersDialog(vm, onRequestPermission)
     QueueDialog(vm)
+    StudioDialog(vm)
     RecordingsDialog(vm)
     ConfirmLoadDialog(vm)
 }

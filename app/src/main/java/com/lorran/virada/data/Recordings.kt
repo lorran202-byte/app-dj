@@ -24,6 +24,14 @@ class RecordingTarget(
     val channel: FileChannel,
     private val pfd: ParcelFileDescriptor?,
 ) {
+    /** Apaga o arquivo (trabalho cancelado ou com erro). */
+    fun discard(ctx: Context) {
+        try { channel.close() } catch (_: Exception) {}
+        try { pfd?.close() } catch (_: Exception) {}
+        if (uri != null) runCatching { ctx.contentResolver.delete(uri, null, null) }
+        file?.delete()
+    }
+
     fun finish(ctx: Context) {
         try { pfd?.close() } catch (_: Exception) {}
         if (uri != null && Build.VERSION.SDK_INT >= 29) {
@@ -38,12 +46,17 @@ class Recordings(private val ctx: Context) {
 
     fun create(): RecordingTarget {
         val stamp = SimpleDateFormat("yyyy-MM-dd_HH-mm", Locale.US).format(Date())
-        val name = "Mix_$stamp.wav"
+        return create("Mix_$stamp.wav", "")
+    }
+
+    /** Cria um WAV em Música/Virada DJ/[sub] (visível na biblioteca e em outros apps). */
+    fun create(name: String, sub: String): RecordingTarget {
+        val folder = if (sub.isEmpty()) "Virada DJ" else "Virada DJ/$sub"
         if (Build.VERSION.SDK_INT >= 29) {
             val v = ContentValues().apply {
                 put(MediaStore.Audio.Media.DISPLAY_NAME, name)
                 put(MediaStore.Audio.Media.MIME_TYPE, "audio/x-wav")
-                put(MediaStore.Audio.Media.RELATIVE_PATH, Environment.DIRECTORY_MUSIC + "/Virada DJ")
+                put(MediaStore.Audio.Media.RELATIVE_PATH, Environment.DIRECTORY_MUSIC + "/" + folder)
                 put(MediaStore.Audio.Media.IS_PENDING, 1)
             }
             val col = MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
@@ -52,7 +65,7 @@ class Recordings(private val ctx: Context) {
             val ch = FileOutputStream(pfd.fileDescriptor).channel
             return RecordingTarget(name, uri, null, ch, pfd)
         }
-        val dir = File(ctx.getExternalFilesDir(Environment.DIRECTORY_MUSIC), "Virada DJ").apply { mkdirs() }
+        val dir = File(ctx.getExternalFilesDir(Environment.DIRECTORY_MUSIC), folder).apply { mkdirs() }
         val f = File(dir, name)
         val ch = RandomAccessFile(f, "rw").channel
         return RecordingTarget(name, null, f, ch, null)
