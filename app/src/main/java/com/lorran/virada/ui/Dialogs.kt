@@ -340,7 +340,7 @@ fun FoldersDialog(vm: DjViewModel, onRequestPermission: () -> Unit) {
         onDismissRequest = { vm.showFolders = false },
         confirmButton = { TextButton(onClick = { vm.showFolders = false }) { Text("Pronto") } },
         dismissButton = {
-            if (sel.isNotEmpty()) TextButton(onClick = { vm.setFolders(emptySet()) }) { Text("Usar todas") }
+            if (sel.isNotEmpty()) TextButton(onClick = { vm.saveFolders(emptySet()) }) { Text("Usar todas") }
         },
         title = { Text("Pastas da biblioteca") },
         containerColor = C.Surface,

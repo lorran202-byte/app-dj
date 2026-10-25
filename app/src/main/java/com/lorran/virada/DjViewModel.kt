@@ -261,10 +261,10 @@ class DjViewModel(app: Application) : AndroidViewModel(app) {
             cur.removeAll { it.startsWith("$path/") }
             cur.add(path)
         }
-        setFolders(cur)
+        saveFolders(cur)
     }
 
-    fun setFolders(s: Set<String>) {
+    fun saveFolders(s: Set<String>) {
         folders = s
         prefs.edit().putStringSet("folders", s).apply()
     }
